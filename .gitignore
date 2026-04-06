@@ -1,0 +1,17 @@
+# 빌드 출력
+bin/
+/nodeforge
+
+# 생성 파일 (proto 생성 코드는 gen/ 디렉토리)
+gen/
+
+# 테스트
+coverage.out
+
+# 환경
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
