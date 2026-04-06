@@ -1,0 +1,122 @@
+linters:
+  enable:
+    # 코드 스타일 및 포맷팅
+    - gofmt
+    - goimports
+    - lll
+    - misspell
+    - revive
+
+    # 에러 핸들링
+    - errcheck
+    - errorlint
+    - noctx
+    - bodyclose
+
+    # 성능 및 효율성
+    - ineffassign
+    - unconvert
+    - unused
+    - gosimple
+    - staticcheck
+    - unparam
+    - prealloc
+
+    # 코드 복잡성 및 품질
+    - dupl
+    - funlen
+    - gocheckcompilerdirectives
+    - goconst
+    - gocritic
+    - gocyclo
+    - gosec
+    - govet
+    - nakedret
+    - copyloopvar
+
+    # nolint 지시어 규칙
+    - nolintlint
+
+linters-settings:
+  goimports:
+    local-prefixes: github.com/HeaInSeo/NodeForge
+
+  dupl:
+    threshold: 100
+
+  funlen:
+    lines: 100
+    statements: 50
+
+  goconst:
+    min-len: 2
+    min-occurrences: 3
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+      - style
+    disabled-checks:
+      - ifElseChain
+      - whyNoLint
+
+  gocyclo:
+    min-complexity: 20
+
+  govet:
+    enable:
+      - nilness
+      - shadow
+
+  lll:
+    line-length: 120
+
+  misspell:
+    locale: US
+
+  nolintlint:
+    allow-unused: true
+    require-explanation: false
+    require-specific: true
+
+  revive:
+    rules:
+      - name: indent-error-flow
+      - name: unexported-return
+        disabled: true
+      - name: unused-parameter
+      - name: unused-receiver
+
+issues:
+  exclude-rules:
+    # 테스트 파일 완화
+    - path: (.+)_test\.go
+      linters:
+        - dupl
+        - funlen
+        - lll
+
+    # protobuf 생성 파일 완화
+    - path: .*\.pb\.go$
+      linters:
+        - revive
+        - lll
+        - gosec
+        - unused
+        - gocritic
+
+    # protobuf gRPC 생성 파일 완화
+    - path: .*_grpc\.pb\.go$
+      linters:
+        - revive
+        - lll
+        - gosec
+        - unused
+        - gocritic
+
+  exclude-dirs:
+    - vendor
+
+run:
+  timeout: 5m
