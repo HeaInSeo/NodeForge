@@ -20,7 +20,7 @@ func NewHandler() *Handler {
 }
 
 // Ping responds with pong and the server hostname.
-func (h *Handler) Ping(_ context.Context, req *nfv1.PingRequest) (*nfv1.PingResponse, error) {
+func (_ *Handler) Ping(_ context.Context, req *nfv1.PingRequest) (*nfv1.PingResponse, error) {
 	host, _ := os.Hostname()
 	return &nfv1.PingResponse{
 		Message:  "pong: " + req.GetMessage(),
