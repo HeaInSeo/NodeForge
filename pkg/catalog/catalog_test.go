@@ -118,6 +118,7 @@ func TestRegisterTool_CasHashPopulated(t *testing.T) {
 		Digest:           "sha256:abc",
 		InputNames:       []string{"reads.fq"},
 		OutputNames:      []string{"aligned.bam"},
+		EnvironmentSpec:  "name: bwa\ndependencies:\n  - bwa=0.7.17=h5bf99c6_8\n",
 	}
 
 	resp, err := svc.RegisterTool(t.Context(), req)
@@ -132,6 +133,9 @@ func TestRegisterTool_CasHashPopulated(t *testing.T) {
 	}
 	if resp.Tool.CasHash != resp.CasHash {
 		t.Errorf("Tool.CasHash %q != response CasHash %q", resp.Tool.CasHash, resp.CasHash)
+	}
+	if resp.Tool.EnvironmentSpec != req.EnvironmentSpec {
+		t.Errorf("Tool.EnvironmentSpec %q != request EnvironmentSpec %q", resp.Tool.EnvironmentSpec, req.EnvironmentSpec)
 	}
 }
 

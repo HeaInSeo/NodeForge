@@ -102,6 +102,7 @@ func (s *ToolRegistryService) RegisterTool(
 		Digest:           req.Digest,
 		InputNames:       req.InputNames,
 		OutputNames:      req.OutputNames,
+		EnvironmentSpec:  req.EnvironmentSpec,
 		RegisteredAt:     time.Now().Unix(),
 	}
 	hash, err := s.catalog.Save(tool)
