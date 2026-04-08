@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -30,12 +31,26 @@ import (
 )
 
 const (
-	buildNamespace     = "nodeforge-builds"
-	registryAddr       = "10.96.235.195:5000" // in-cluster registry ClusterIP
-	kanikoImage        = "gcr.io/kaniko-project/executor:v1.23.2"
-	jobTTLSeconds      = int32(300)
-	jobDeadlineSeconds = int64(600)
+	defaultBuildNamespace = "nodeforge-builds"
+	defaultRegistryAddr   = "10.96.235.195:5000" // in-cluster registry ClusterIP
+	kanikoImage           = "gcr.io/kaniko-project/executor:v1.23.2"
+	jobTTLSeconds         = int32(300)
+	jobDeadlineSeconds    = int64(600)
 )
+
+func buildNamespace() string {
+	if v := os.Getenv("NODEFORGE_BUILD_NAMESPACE"); v != "" {
+		return v
+	}
+	return defaultBuildNamespace
+}
+
+func registryAddr() string {
+	if v := os.Getenv("NODEFORGE_REGISTRY_ADDR"); v != "" {
+		return v
+	}
+	return defaultRegistryAddr
+}
 
 // Service implements BuildServiceServer.
 type Service struct {
@@ -59,12 +74,13 @@ func NewService(validator *validate.Service, registry *catalog.ToolRegistryServi
 	}
 
 	// Ensure build namespace exists.
+	ns := buildNamespace()
 	ctx := context.Background()
-	_, err = kube.CoreV1().Namespaces().Get(ctx, buildNamespace, metav1.GetOptions{})
+	_, err = kube.CoreV1().Namespaces().Get(ctx, ns, metav1.GetOptions{})
 	if err != nil {
-		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: buildNamespace}}
-		if _, cerr := kube.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{}); cerr != nil {
-			return nil, fmt.Errorf("create namespace %s: %w", buildNamespace, cerr)
+		nsObj := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}
+		if _, cerr := kube.CoreV1().Namespaces().Create(ctx, nsObj, metav1.CreateOptions{}); cerr != nil {
+			return nil, fmt.Errorf("create namespace %s: %w", ns, cerr)
 		}
 	}
 
@@ -85,31 +101,32 @@ func (s *Service) BuildAndRegister(req *nfv1.BuildRequest, stream grpc.ServerStr
 		})
 	}
 
-	destination := fmt.Sprintf("%s/%s:latest", registryAddr, sanitizeName(req.ToolName))
+	bns := buildNamespace()
+	destination := fmt.Sprintf("%s/%s:latest", registryAddr(), sanitizeName(req.ToolName))
 
 	// ── L2: builder Job ──────────────────────────────────────────────────────
 
 	cmName := jName + "-ctx"
 	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: buildNamespace},
+		ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: bns},
 		Data:       map[string]string{"Dockerfile": req.DockerfileContent},
 	}
-	if _, err := s.kube.CoreV1().ConfigMaps(buildNamespace).Create(ctx, cm, metav1.CreateOptions{}); err != nil {
+	if _, err := s.kube.CoreV1().ConfigMaps(bns).Create(ctx, cm, metav1.CreateOptions{}); err != nil {
 		return fmt.Errorf("create configmap: %w", err)
 	}
 	defer func() {
-		_ = s.kube.CoreV1().ConfigMaps(buildNamespace).Delete(
+		_ = s.kube.CoreV1().ConfigMaps(bns).Delete(
 			context.Background(), cmName, metav1.DeleteOptions{})
 	}()
 
-	job := kanikoJob(jName, cmName, destination, req)
-	if _, err := s.kube.BatchV1().Jobs(buildNamespace).Create(ctx, job, metav1.CreateOptions{}); err != nil {
+	job := kanikoJob(jName, cmName, destination, req, bns)
+	if _, err := s.kube.BatchV1().Jobs(bns).Create(ctx, job, metav1.CreateOptions{}); err != nil {
 		return fmt.Errorf("create job: %w", err)
 	}
 	_ = send(nfv1.BuildEventKind_BUILD_EVENT_KIND_JOB_CREATED, fmt.Sprintf("Job %s created", jName))
 	slog.Info("kaniko job created", "job", jName, "destination", destination)
 
-	watcher, err := s.kube.BatchV1().Jobs(buildNamespace).Watch(ctx, metav1.ListOptions{
+	watcher, err := s.kube.BatchV1().Jobs(bns).Watch(ctx, metav1.ListOptions{
 		FieldSelector: "metadata.name=" + jName,
 	})
 	if err != nil {
@@ -235,7 +252,8 @@ func (s *Service) waitForBuild(
 func (s *Service) streamPodLogs(ctx context.Context, jName string, stream grpc.ServerStreamingServer[nfv1.BuildEvent]) {
 	time.Sleep(2 * time.Second)
 
-	pods, err := s.kube.CoreV1().Pods(buildNamespace).List(ctx, metav1.ListOptions{
+	bns := buildNamespace()
+	pods, err := s.kube.CoreV1().Pods(bns).List(ctx, metav1.ListOptions{
 		LabelSelector: "job-name=" + jName,
 	})
 	if err != nil || len(pods.Items) == 0 {
@@ -243,7 +261,7 @@ func (s *Service) streamPodLogs(ctx context.Context, jName string, stream grpc.S
 	}
 	podName := pods.Items[0].Name
 
-	rc, err := s.kube.CoreV1().Pods(buildNamespace).GetLogs(podName, &corev1.PodLogOptions{
+	rc, err := s.kube.CoreV1().Pods(bns).GetLogs(podName, &corev1.PodLogOptions{
 		Follow:    true,
 		Container: "kaniko",
 	}).Stream(ctx)
@@ -270,7 +288,7 @@ func (s *Service) streamPodLogs(ctx context.Context, jName string, stream grpc.S
 }
 
 // kanikoJob returns a Job spec that builds a Dockerfile using kaniko.
-func kanikoJob(name, cmName, destination string, req *nfv1.BuildRequest) *batchv1.Job {
+func kanikoJob(name, cmName, destination string, req *nfv1.BuildRequest, namespace string) *batchv1.Job {
 	ttl := jobTTLSeconds
 	deadline := jobDeadlineSeconds
 	backoff := int32(0)
@@ -278,7 +296,7 @@ func kanikoJob(name, cmName, destination string, req *nfv1.BuildRequest) *batchv
 	return &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: buildNamespace,
+			Namespace: namespace,
 			Labels: map[string]string{
 				"app":        "nodeforge-build",
 				"request-id": req.RequestId,
