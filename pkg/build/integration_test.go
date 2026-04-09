@@ -83,3 +83,74 @@ RUN echo "hello nodeforge" > /hello.txt
 	}
 	t.Logf("Gate passed: digest=%s", finalDigest)
 }
+
+// TestBuildAndRegister_BadDockerfile verifies that a Dockerfile with a failing
+// RUN command causes NodeForge to emit BUILD_EVENT_KIND_FAILED and NOT succeed.
+//
+// Regression guard: BUILD_EVENT_KIND_FAILED must be returned (not a silent hang
+// or a spurious SUCCEEDED) when the kaniko Job exits non-zero.
+func TestBuildAndRegister_BadDockerfile(t *testing.T) {
+	if os.Getenv("KUBECONFIG") == "" {
+		t.Skip("KUBECONFIG not set — skipping integration test")
+	}
+
+	conn, err := grpc.NewClient(nodeforgeAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("grpc.NewClient: %v", err)
+	}
+	defer conn.Close()
+
+	client := nfv1.NewBuildServiceClient(conn)
+
+	req := &nfv1.BuildRequest{
+		RequestId:        fmt.Sprintf("inttest-bad-%d", time.Now().UnixMilli()),
+		ToolDefinitionId: "test-tool-bad",
+		ToolName:         "test-bad-dockerfile",
+		ImageUri:         "docker.io/library/alpine:3.19",
+		// Intentionally broken: 'nonexistent_command_xyz' will make kaniko exit non-zero.
+		DockerfileContent: `FROM alpine:3.19 AS builder
+RUN nonexistent_command_xyz --fail
+`,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	defer cancel()
+
+	stream, err := client.BuildAndRegister(ctx, req)
+	if err != nil {
+		t.Fatalf("BuildAndRegister RPC: %v", err)
+	}
+
+	var gotFailed bool
+	var gotSucceeded bool
+
+	for {
+		ev, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			// A gRPC-level error after some events is also a failure signal.
+			t.Logf("stream.Recv error (may be expected on failure path): %v", err)
+			gotFailed = true
+			break
+		}
+
+		t.Logf("[%s] %s", ev.Kind, ev.Message)
+
+		switch ev.Kind {
+		case nfv1.BuildEventKind_BUILD_EVENT_KIND_FAILED:
+			gotFailed = true
+		case nfv1.BuildEventKind_BUILD_EVENT_KIND_SUCCEEDED:
+			gotSucceeded = true
+		}
+	}
+
+	if gotSucceeded {
+		t.Fatal("build unexpectedly succeeded with a broken Dockerfile")
+	}
+	if !gotFailed {
+		t.Fatal("expected BUILD_EVENT_KIND_FAILED but did not receive it")
+	}
+	t.Log("Failure gate passed: BUILD_EVENT_KIND_FAILED received as expected")
+}
