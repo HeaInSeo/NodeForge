@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -239,8 +240,12 @@ func (s *Service) waitForBuild(
 					send(nfv1.BuildEventKind_BUILD_EVENT_KIND_PUSH_SUCCEEDED, "image pushed to "+destination)
 					digest, derr := fetchDigest(destination)
 					if derr != nil {
-						slog.Warn("digest fetch failed", "err", derr)
-						digest = "unknown"
+						slog.Warn("registry API unreachable, falling back to pod log extraction", "err", derr)
+						digest, derr = s.extractDigestFromPodLogs(ctx, jName)
+						if derr != nil {
+							slog.Warn("pod log digest extraction failed", "err", derr)
+							digest = "unknown"
+						}
 					}
 					return digest, nil
 				}
@@ -344,6 +349,40 @@ func kanikoJob(name, cmName, destination string, req *nfv1.BuildRequest, namespa
 			},
 		},
 	}
+}
+
+var pushedDigestRe = regexp.MustCompile(`Pushed [^\s]+@(sha256:[a-f0-9]+)`)
+
+// extractDigestFromPodLogs reads kaniko pod logs and extracts the image digest
+// from the "Pushed <image>@sha256:<hash>" line emitted during push.
+// Used as fallback when the registry REST API is unreachable from the host.
+func (s *Service) extractDigestFromPodLogs(ctx context.Context, jName string) (string, error) {
+	bns := buildNamespace()
+	pods, err := s.kube.CoreV1().Pods(bns).List(ctx, metav1.ListOptions{
+		LabelSelector: "job-name=" + jName,
+	})
+	if err != nil || len(pods.Items) == 0 {
+		return "", fmt.Errorf("pod not found for job %s", jName)
+	}
+	podName := pods.Items[0].Name
+
+	rc, err := s.kube.CoreV1().Pods(bns).GetLogs(podName, &corev1.PodLogOptions{
+		Container: "kaniko",
+	}).Stream(ctx)
+	if err != nil {
+		return "", fmt.Errorf("get pod logs: %w", err)
+	}
+	defer rc.Close()
+
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return "", fmt.Errorf("read pod logs: %w", err)
+	}
+
+	if m := pushedDigestRe.FindSubmatch(data); len(m) >= 2 {
+		return string(m[1]), nil
+	}
+	return "", fmt.Errorf("digest not found in kaniko logs for job %s", jName)
 }
 
 // fetchDigest queries the registry manifest API for the image digest.
