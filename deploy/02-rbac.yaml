@@ -1,0 +1,44 @@
+---
+# ServiceAccount for NodeForge controlplane (future in-cluster deployment).
+# Currently NodeForge runs as a local binary using kubeconfig from multipass-k8s-lab.
+# This RBAC is applied proactively so in-cluster deployment is ready without changes.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nodeforge-controlplane
+  namespace: nodeforge-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nodeforge-controlplane
+rules:
+  # Namespace management (create nodeforge-builds, nodeforge-smoke)
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "create"]
+  # ConfigMap management (Dockerfile context for kaniko)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "create", "delete"]
+  # Job management (kaniko build jobs, smoke-run jobs)
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "create", "delete", "watch"]
+  # Pod management (log streaming from kaniko pods)
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nodeforge-controlplane
+subjects:
+  - kind: ServiceAccount
+    name: nodeforge-controlplane
+    namespace: nodeforge-system
+roleRef:
+  kind: ClusterRole
+  name: nodeforge-controlplane
+  apiGroup: rbac.authorization.k8s.io

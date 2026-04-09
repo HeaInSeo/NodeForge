@@ -1,7 +1,20 @@
 //go:build integration
 
-// Package build integration tests require a running kind cluster with NodeForge deployed.
-// Run with: KUBECONFIG=~/.kube/config go test -v -tags=integration ./pkg/build/... -timeout 10m
+// Package build integration tests require a Kubernetes cluster with the NodeForge registry
+// deployed (deploy/01-registry.yaml) and NodeForge running locally as a binary.
+//
+// kind 클러스터 (기존):
+//
+//	KUBECONFIG=~/.kube/config go test -v -tags=integration ./pkg/build/... -timeout 10m
+//
+// multipass-k8s-lab VM 클러스터 (권장 — 멀티노드, 실제 VM 네트워크):
+//
+//	# 최초 1회: 레지스트리 + RBAC + 네임스페이스 배포
+//	make deploy-multipass
+//	# NodeForge 로컬 실행 후 테스트
+//	make test-integration-multipass
+//
+// 자세한 내용: docs/MULTIPASS_K8S_TESTING.md
 package build
 
 import (

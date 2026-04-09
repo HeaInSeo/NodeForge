@@ -56,8 +56,24 @@ Do not proceed to detail work if the loop has not closed.
 
 ## 5. kubeconfig / K8s API access
 
-NodeForge accesses K8s via local kubeconfig (`~/.kube/config`). No Ingress or service mesh
-in the sprint scope. Do not design for in-cluster service account auth yet — that is roadmap.
+NodeForge accesses K8s via local kubeconfig. No Ingress or service mesh in the sprint scope.
+Do not design for in-cluster service account auth yet — that is roadmap (see `deploy/02-rbac.yaml`
+which is deployed proactively but not yet used).
+
+### 테스트 환경
+
+| 환경 | kubeconfig | 레지스트리 주소 | Makefile 타겟 |
+|------|-----------|----------------|--------------|
+| kind | `~/.kube/config` | `10.96.0.1:5000` | `test-integration` |
+| multipass-k8s-lab | `../multipass-k8s-lab/kubeconfig` | `10.87.127.18:31500` | `test-integration-multipass` |
+
+**multipass-k8s-lab 사전 조건** (최초 1회):
+```bash
+make deploy-multipass   # 레지스트리 + RBAC + 네임스페이스 배포
+```
+containerd insecure registry 설정도 필요합니다 (`docs/MULTIPASS_K8S_TESTING.md` 참조).
+
+통합 테스트는 NodeForge를 로컬 바이너리로 실행하고(`bin/nodeforge`) kubeconfig로 원격 클러스터에 접속합니다.
 
 ## 6. Decision checklist before every change
 

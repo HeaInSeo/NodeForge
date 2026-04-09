@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nodeforge-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nodeforge-builds
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nodeforge-smoke
