@@ -64,33 +64,68 @@ func (s *Service) ListPolicies(_ context.Context, _ *nfv1.ListPoliciesRequest) (
 
 	version := info.ModTime().Format(time.RFC3339)
 
+	policies := []*nfv1.PolicyInfo{
+		// ── dockerfile/multistage (DFM) ──────────────────────────────────────
+		{
+			RuleId:      "DFM001",
+			Name:        "Exactly one FROM required",
+			Version:     version,
+			Description: "User Dockerfile must contain exactly one FROM instruction.",
+		},
+		{
+			RuleId:      "DFM002",
+			Name:        "AS builder alias required",
+			Version:     version,
+			Description: "FROM must include AS builder alias.",
+		},
+		{
+			RuleId:      "DFM003",
+			Name:        "AS final reserved",
+			Version:     version,
+			Description: "The alias 'final' is reserved; do not define it in user Dockerfiles.",
+		},
+		{
+			RuleId:      "DFM004",
+			Name:        "COPY --from=builder prohibited",
+			Version:     version,
+			Description: "COPY --from=builder must not appear in user-submitted Dockerfiles.",
+		},
+		// ── dockerfile/security (DSF) ─────────────────────────────────────────
+		{
+			RuleId:      "DSF001",
+			Name:        "Non-root USER required",
+			Version:     version,
+			Description: "Dockerfile must specify a non-root USER instruction (not root or UID 0).",
+		},
+		{
+			RuleId:      "DSF002",
+			Name:        "No secrets in ENV",
+			Version:     version,
+			Description: "ENV instructions must not contain variables named PASSWORD, SECRET, API_KEY, TOKEN, or PASSWD.",
+		},
+		{
+			RuleId:      "DSF003",
+			Name:        "No remote ADD URLs",
+			Version:     version,
+			Description: "ADD instruction must not reference remote http:// or https:// URLs; use RUN curl/wget instead.",
+		},
+		// ── dockerfile/genomics (DGF) ─────────────────────────────────────────
+		{
+			RuleId:      "DGF001",
+			Name:        "conda/mamba install version pinning required",
+			Version:     version,
+			Description: "RUN conda/mamba/micromamba install must specify exact versions (pkg=version) or use -f/--file.",
+		},
+		{
+			RuleId:      "DGF002",
+			Name:        "pip install version pinning required",
+			Version:     version,
+			Description: "RUN pip install must specify exact versions (pkg==version) or use -r/--requirement.",
+		},
+	}
+
 	return &nfv1.ListPoliciesResponse{
 		BundleVersion: version,
-		Policies: []*nfv1.PolicyInfo{
-			{
-				RuleId:      "DFM001",
-				Name:        "FROM required",
-				Version:     version,
-				Description: "Dockerfile must contain at least one FROM instruction.",
-			},
-			{
-				RuleId:      "DFM002",
-				Name:        "AS builder alias required",
-				Version:     version,
-				Description: "Every FROM must include an AS <alias> clause.",
-			},
-			{
-				RuleId:      "DFM003",
-				Name:        "AS final reserved",
-				Version:     version,
-				Description: "The alias 'final' is reserved and must not be used on FROM.",
-			},
-			{
-				RuleId:      "DFM004",
-				Name:        "COPY --from=builder allowed only",
-				Version:     version,
-				Description: "COPY --from must reference 'builder'; other stage names are blocked.",
-			},
-		},
+		Policies:      policies,
 	}, nil
 }

@@ -39,7 +39,7 @@ func TestGetPolicyBundle_FileMissing(t *testing.T) {
 	}
 }
 
-func TestListPolicies_ReturnsFourRules(t *testing.T) {
+func TestListPolicies_ReturnsAllRules(t *testing.T) {
 	dir := t.TempDir()
 	wasmPath := filepath.Join(dir, "dockguard.wasm")
 	if err := os.WriteFile(wasmPath, []byte("x"), 0o600); err != nil {
@@ -51,14 +51,20 @@ func TestListPolicies_ReturnsFourRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPolicies: %v", err)
 	}
-	if len(resp.Policies) != 4 {
-		t.Errorf("expected 4 policies, got %d", len(resp.Policies))
+	// DFM001-004 (multistage) + DSF001-003 (security) + DGF001-002 (genomics)
+	wantRules := []string{
+		"DFM001", "DFM002", "DFM003", "DFM004",
+		"DSF001", "DSF002", "DSF003",
+		"DGF001", "DGF002",
+	}
+	if len(resp.Policies) != len(wantRules) {
+		t.Errorf("expected %d policies, got %d", len(wantRules), len(resp.Policies))
 	}
 	ids := map[string]bool{}
 	for _, p := range resp.Policies {
 		ids[p.RuleId] = true
 	}
-	for _, want := range []string{"DFM001", "DFM002", "DFM003", "DFM004"} {
+	for _, want := range wantRules {
 		if !ids[want] {
 			t.Errorf("missing policy rule %s", want)
 		}
