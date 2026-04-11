@@ -1,18 +1,15 @@
 //go:build integration
 
-// Package build integration tests require a Kubernetes cluster with the NodeForge registry
-// deployed (deploy/01-registry.yaml) and NodeForge running locally as a binary.
-//
-// kind 클러스터 (기존):
-//
-//	KUBECONFIG=~/.kube/config go test -v -tags=integration ./pkg/build/... -timeout 10m
+// Package build integration tests require Harbor running in the multipass K8s cluster
+// (harbor.10.113.24.96.nip.io) and NodeForge running locally as a binary.
 //
 // multipass-k8s-lab VM 클러스터 (권장 — 멀티노드, 실제 VM 네트워크):
 //
-//	# 최초 1회: 레지스트리 + RBAC + 네임스페이스 배포
-//	make deploy-multipass
+//	# Harbor 재개 (suspend 상태인 경우)
+//	scripts/host/harbor-resume.sh
 //	# NodeForge 로컬 실행 후 테스트
-//	make test-integration-multipass
+//	NODEFORGE_REGISTRY_ADDR=harbor.10.113.24.96.nip.io go run ./cmd/controlplane &
+//	go test -v -tags=integration ./pkg/build/... -timeout 10m
 //
 // 자세한 내용: docs/MULTIPASS_K8S_TESTING.md
 package build

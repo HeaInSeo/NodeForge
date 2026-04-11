@@ -14,3 +14,10 @@ require (
 	k8s.io/apimachinery v0.33.0
 	k8s.io/client-go v0.33.0
 )
+
+require (
+	github.com/HeaInSeo/podbridge5 v0.0.0-00010101000000-000000000000
+	github.com/containers/storage v1.55.0
+)
+
+replace github.com/HeaInSeo/podbridge5 => /opt/go/src/github.com/HeaInSeo/podbridge5

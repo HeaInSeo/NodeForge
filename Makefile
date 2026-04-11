@@ -5,12 +5,16 @@ GOLANGCI_LINT ?= golangci-lint
 PROTOC        ?= protoc
 PROTO_OUT     ?= ./gen/go
 
+# ── buildah/podbridge5 빌드 태그 ──────────────────────────────────────────────
+# btrfs-progs-devel, gpgme-devel C 헤더 없이도 빌드 가능하도록
+# containers/storage, containers/image의 선택적 드라이버를 제외한다.
+BUILDTAGS ?= exclude_graphdriver_btrfs containers_image_openpgp exclude_graphdriver_devicemapper
+
 # ── multipass-k8s-lab 설정 ────────────────────────────────────────────────────
 # multipass-k8s-lab 클러스터 kubeconfig (기본값: 프로젝트 상대경로)
 MULTIPASS_KUBECONFIG ?= $(shell realpath ../multipass-k8s-lab/kubeconfig 2>/dev/null || echo "")
-# 클러스터 마스터 노드 IP + NodePort 레지스트리 주소
-MULTIPASS_MASTER_IP  ?= 10.87.127.18
-MULTIPASS_REGISTRY   ?= $(MULTIPASS_MASTER_IP):31500
+# Harbor 레지스트리 주소 (Cilium L2 LB IP로 접근)
+MULTIPASS_REGISTRY   ?= harbor.10.113.24.96.nip.io
 
 # ── 포맷 ──────────────────────────────────────────────────────────────────────
 fmt:
@@ -25,11 +29,11 @@ lint-fix:
 
 # ── 단위 테스트 ───────────────────────────────────────────────────────────────
 test:
-	go test -v -race -cover ./...
+	go test -tags "$(BUILDTAGS)" -v -race -cover ./...
 
 # ── 통합 테스트 (kind 클러스터) ───────────────────────────────────────────────
 test-integration:
-	KUBECONFIG=~/.kube/config go test -v -tags=integration ./... -timeout 10m
+	KUBECONFIG=~/.kube/config go test -v -tags "integration $(BUILDTAGS)" ./... -timeout 10m
 
 # ── 통합 테스트 (multipass-k8s-lab VM 클러스터) ───────────────────────────────
 # 사전 조건:
@@ -47,8 +51,8 @@ test-integration-multipass: build
 	    echo "ERROR: multipass-k8s-lab/kubeconfig not found. Run cluster first." >&2; exit 1; \
 	fi
 	@echo "==> Cluster: $$(KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl get nodes --no-headers 2>&1 | awk '{print $$1, $$2}' | tr '\n' '  ')"
-	@echo "==> Registry: $(MULTIPASS_REGISTRY)"
-	@echo "==> Starting NodeForge (local binary → remote cluster)..."
+	@echo "==> Registry: $(MULTIPASS_REGISTRY) (Harbor)"
+	@echo "==> Starting NodeForge (local binary)..."
 	@KUBECONFIG=$(MULTIPASS_KUBECONFIG) \
 	    NODEFORGE_REGISTRY_ADDR=$(MULTIPASS_REGISTRY) \
 	    ./bin/nodeforge &
@@ -57,7 +61,7 @@ test-integration-multipass: build
 	echo "==> Running integration tests (pid=$$NF_PID)..."; \
 	KUBECONFIG=$(MULTIPASS_KUBECONFIG) \
 	    NODEFORGE_REGISTRY_ADDR=$(MULTIPASS_REGISTRY) \
-	    go test -v -tags=integration ./pkg/build/... -timeout 12m; \
+	    go test -v -tags "integration $(BUILDTAGS)" ./pkg/build/... -timeout 12m; \
 	TEST_EXIT=$$?; \
 	echo "==> Stopping NodeForge (pid=$$NF_PID)..."; \
 	kill $$NF_PID 2>/dev/null || true; \
@@ -84,7 +88,7 @@ undeploy-multipass:
 
 # ── 빌드 ──────────────────────────────────────────────────────────────────────
 build:
-	go build -o bin/nodeforge ./cmd/controlplane/...
+	go build -tags "$(BUILDTAGS)" -o bin/nodeforge ./cmd/controlplane/...
 
 # ── proto 생성 ────────────────────────────────────────────────────────────────
 # api-protos 레포의 .proto 파일을 기준으로 생성.

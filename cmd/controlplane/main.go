@@ -11,6 +11,8 @@ import (
 
 	nfv1 "github.com/HeaInSeo/api-protos/gen/go/nodeforge/v1"
 
+	"github.com/HeaInSeo/podbridge5"
+
 	"github.com/HeaInSeo/NodeForge/pkg/build"
 	"github.com/HeaInSeo/NodeForge/pkg/catalog"
 	"github.com/HeaInSeo/NodeForge/pkg/ping"
@@ -21,6 +23,11 @@ import (
 const defaultAddr = ":50051"
 
 func main() {
+	// Required for buildah rootless mode: handle reexec before any other init.
+	if podbridge5.ReexecIfNeeded() {
+		os.Exit(0)
+	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
@@ -56,7 +63,7 @@ func main() {
 	registrySvc := catalog.NewToolRegistryService(cat)
 	nfv1.RegisterToolRegistryServiceServer(srv, registrySvc)
 
-	// BuildService — kaniko Job orchestration → L3 → L4 → registration.
+	// BuildService — buildah build+push → L3 → L4 → registration.
 	buildSvc, err := build.NewService(validateSvc, registrySvc)
 	if err != nil {
 		slog.Warn("BuildService unavailable (kubeconfig missing?)", "err", err)
