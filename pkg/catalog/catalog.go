@@ -80,6 +80,38 @@ func (c *Catalog) List() ([]*nfv1.RegisteredToolDefinition, error) {
 	return tools, nil
 }
 
+// ListActive returns only tools with phase == "Active".
+// UI 팔레트가 사용자에게 표시할 툴 목록 조회에 사용된다.
+func (c *Catalog) ListActive() ([]*nfv1.RegisteredToolDefinition, error) {
+	all, err := c.List()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*nfv1.RegisteredToolDefinition, 0, len(all))
+	for _, t := range all {
+		if t.Phase == "Active" {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+// ListByStableRef returns all tools matching the given stable_ref.
+// UI 검색·카탈로그 탐색 전용. 파이프라인 pin에는 casHash를 사용한다.
+func (c *Catalog) ListByStableRef(stableRef string) ([]*nfv1.RegisteredToolDefinition, error) {
+	all, err := c.List()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*nfv1.RegisteredToolDefinition, 0)
+	for _, t := range all {
+		if t.StableRef == stableRef {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
 // ToolRegistryService implements ToolRegistryServiceServer.
 type ToolRegistryService struct {
 	nfv1.UnimplementedToolRegistryServiceServer
@@ -95,15 +127,34 @@ func NewToolRegistryService(cat *Catalog) *ToolRegistryService {
 func (s *ToolRegistryService) RegisterTool(
 	_ context.Context, req *nfv1.RegisterToolRequest,
 ) (*nfv1.RegisterToolResponse, error) {
+	stableRef := req.StableRef
+	if stableRef == "" && req.ToolName != "" {
+		// NodeForge가 tool_name@version 형태로 조립한다.
+		if req.Version != "" {
+			stableRef = req.ToolName + "@" + req.Version
+		} else {
+			stableRef = req.ToolName
+		}
+	}
+
 	tool := &nfv1.RegisteredToolDefinition{
 		ToolDefinitionId: req.ToolDefinitionId,
 		ToolName:         req.ToolName,
 		ImageUri:         req.ImageUri,
 		Digest:           req.Digest,
-		InputNames:       req.InputNames,
-		OutputNames:      req.OutputNames,
 		EnvironmentSpec:  req.EnvironmentSpec,
 		RegisteredAt:     time.Now().Unix(),
+		Version:          req.Version,
+		StableRef:        stableRef,
+		Inputs:           req.Inputs,
+		Outputs:          req.Outputs,
+		Display:          req.Display,
+		Command:          req.Command,
+		Phase:            "Active",
+		Validation: &nfv1.ValidationStatus{
+			Phase:           "Passed",
+			LastValidatedAt: time.Now().Unix(),
+		},
 	}
 	hash, err := s.catalog.Save(tool)
 	if err != nil {

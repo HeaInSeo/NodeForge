@@ -116,9 +116,18 @@ func TestRegisterTool_CasHashPopulated(t *testing.T) {
 		ToolName:         "bwa",
 		ImageUri:         "registry.example.com/bwa:1.0",
 		Digest:           "sha256:abc",
-		InputNames:       []string{"reads.fq"},
-		OutputNames:      []string{"aligned.bam"},
+		Version:          "0.7.17",
 		EnvironmentSpec:  "name: bwa\ndependencies:\n  - bwa=0.7.17=h5bf99c6_8\n",
+		Inputs: []*nfv1.PortSpec{
+			{Name: "reads.fq", Role: "sample-fastq", Format: "fastq", Shape: "pair", Required: true},
+		},
+		Outputs: []*nfv1.PortSpec{
+			{Name: "aligned.bam", Role: "aligned-bam", Format: "bam", Shape: "single", Class: "primary"},
+		},
+		Display: &nfv1.DisplaySpec{
+			Label:    "BWA 0.7.17",
+			Category: "Alignment",
+		},
 	}
 
 	resp, err := svc.RegisterTool(t.Context(), req)
