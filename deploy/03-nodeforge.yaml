@@ -1,0 +1,135 @@
+---
+# NodeForge controlplane Deployment
+#
+# buildah가 Pod 내에서 컨테이너 이미지를 빌드하려면 아래 조건이 필요하다:
+#   1. securityContext.privileged: true  → overlay 마운트 + runc 실행 권한
+#   2. /var/lib/containers 볼륨          → buildah 이미지 스토리지
+#
+# NODEFORGE_REGISTRY_ADDR: 빌드 결과를 push할 Harbor 레지스트리 주소.
+# HARBOR_USER / HARBOR_PASS: Harbor 인증 정보 (nodeforge-harbor-auth Secret에서 주입).
+#
+# in-cluster 실행 시 KUBECONFIG 불필요 — ServiceAccount token을 자동으로 사용한다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodeforge-controlplane
+  namespace: nodeforge-system
+  labels:
+    app: nodeforge-controlplane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nodeforge-controlplane
+  template:
+    metadata:
+      labels:
+        app: nodeforge-controlplane
+    spec:
+      serviceAccountName: nodeforge-controlplane
+
+      # buildah overlay 마운트 + runc 실행을 위해 privileged 필요
+      securityContext:
+        runAsUser: 0
+
+      containers:
+        - name: nodeforge
+          # harbor.10.113.24.96.nip.io/nodeforge/controlplane:latest
+          # 이미지는 `make push-image` 또는 Skopeo로 Harbor에 push한다.
+          image: harbor.10.113.24.96.nip.io/nodeforge/controlplane:latest
+          imagePullPolicy: Always
+
+          ports:
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+
+          env:
+            - name: NODEFORGE_REGISTRY_ADDR
+              value: "harbor.10.113.24.96.nip.io"
+            # Harbor 인증 정보는 Secret에서 주입 (아래 nodeforge-harbor-auth 참조)
+            - name: HARBOR_USER
+              valueFrom:
+                secretKeyRef:
+                  name: nodeforge-harbor-auth
+                  key: username
+                  optional: true
+            - name: HARBOR_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: nodeforge-harbor-auth
+                  key: password
+                  optional: true
+
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true
+
+          volumeMounts:
+            # buildah 이미지 스토리지 — Pod 재시작 간 캐시 유지를 위해 emptyDir 사용
+            - name: buildah-storage
+              mountPath: /var/lib/containers
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+
+          livenessProbe:
+            grpc:
+              port: 50051
+            initialDelaySeconds: 10
+            periodSeconds: 30
+
+          readinessProbe:
+            grpc:
+              port: 50051
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+      volumes:
+        - name: buildah-storage
+          emptyDir: {}
+---
+# NodeForge gRPC Service (ClusterIP)
+# GRPCRoute가 이 Service를 backendRef로 참조한다.
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodeforge-controlplane
+  namespace: nodeforge-system
+  labels:
+    app: nodeforge-controlplane
+spec:
+  selector:
+    app: nodeforge-controlplane
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+      protocol: TCP
+---
+# Harbor 인증 정보 Secret 템플릿 (실제 값은 kubectl create secret으로 생성)
+#
+# 생성 방법:
+#   kubectl create secret generic nodeforge-harbor-auth \
+#     --from-literal=username=admin \
+#     --from-literal=password=<harbor-admin-password> \
+#     -n nodeforge-system
+#
+# 아래는 참조용 구조만 명시한다 (민감 정보 미포함).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nodeforge-harbor-auth
+  namespace: nodeforge-system
+  annotations:
+    # 실제 값은 kubectl create secret으로 생성할 것 — 이 파일을 git에 커밋하지 말 것
+    note: "placeholder — 실제 secret은 kubectl로 생성 필요"
+type: Opaque
+stringData:
+  username: "REPLACE_ME"
+  password: "REPLACE_ME"

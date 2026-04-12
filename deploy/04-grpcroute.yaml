@@ -1,0 +1,33 @@
+---
+# Cilium GRPCRoute — NodeForge gRPC 엔드포인트 외부 노출
+#
+# 전제 조건:
+#   - Gateway API CRDs v1.3.0 이상 설치됨
+#   - Cilium GatewayClass (cilium) + Gateway 가 설치됨
+#   - Gateway에 port 80 HTTP 리스너가 있어야 한다 (h2c — TLS 없는 HTTP/2)
+#
+# 접근 방법 (NodeKit 기준):
+#   addr := "nodeforge.10.113.24.96.nip.io:80"
+#   conn, _ := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+#
+# parentRef 수정 방법:
+#   실제 Gateway 이름/네임스페이스를 아래 parentRefs에 반영해야 한다.
+#   확인 명령: kubectl get gateway -A
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: nodeforge-grpc
+  namespace: nodeforge-system
+spec:
+  parentRefs:
+    # Harbor HTTPRoute와 동일한 Gateway를 공유한다.
+    # 실제 Gateway 이름/네임스페이스는 `kubectl get gateway -A` 로 확인 후 수정.
+    - name: cilium-gateway
+      namespace: nodeforge-system
+  hostnames:
+    - "nodeforge.10.113.24.96.nip.io"
+  rules:
+    # 모든 gRPC 서비스/메서드를 허용 (matches 미지정 = 전체 통과)
+    - backendRefs:
+        - name: nodeforge-controlplane
+          port: 50051

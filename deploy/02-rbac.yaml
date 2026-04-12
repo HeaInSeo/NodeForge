@@ -1,7 +1,8 @@
 ---
-# ServiceAccount for NodeForge controlplane (future in-cluster deployment).
-# Currently NodeForge runs as a local binary using kubeconfig from multipass-k8s-lab.
-# This RBAC is applied proactively so in-cluster deployment is ready without changes.
+# ServiceAccount for NodeForge controlplane (in-cluster 배포용).
+# I-3에서 kaniko → buildah로 전환함에 따라 RBAC을 간소화했다:
+#   - 제거: configmaps (Dockerfile ConfigMap), pods/log (kaniko 로그 스트리밍)
+#   - 유지: namespaces, jobs, pods (L3 dry-run + L4 smoke run)
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -13,19 +14,15 @@ kind: ClusterRole
 metadata:
   name: nodeforge-controlplane
 rules:
-  # Namespace management (create nodeforge-builds, nodeforge-smoke)
+  # Namespace 생성 (nodeforge-smoke 자동 생성)
   - apiGroups: [""]
     resources: ["namespaces"]
     verbs: ["get", "list", "create"]
-  # ConfigMap management (Dockerfile context for kaniko)
-  - apiGroups: [""]
-    resources: ["configmaps"]
-    verbs: ["get", "create", "delete"]
-  # Job management (kaniko build jobs, smoke-run jobs)
+  # L3 dry-run + L4 smoke run Job 관리
   - apiGroups: ["batch"]
     resources: ["jobs"]
     verbs: ["get", "list", "create", "delete", "watch"]
-  # Pod management (log streaming from kaniko pods)
+  # L4 smoke run 로그 수집
   - apiGroups: [""]
     resources: ["pods", "pods/log"]
     verbs: ["get", "list", "watch"]

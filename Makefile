@@ -1,5 +1,6 @@
 .PHONY: fmt lint lint-fix test test-integration test-integration-multipass \
-        deploy-multipass undeploy-multipass build proto clean
+        deploy-multipass undeploy-multipass build push-image vendor \
+        proto coverage clean all
 
 GOLANGCI_LINT ?= golangci-lint
 PROTOC        ?= protoc
@@ -10,11 +11,10 @@ PROTO_OUT     ?= ./gen/go
 # containers/storage, containers/image의 선택적 드라이버를 제외한다.
 BUILDTAGS ?= exclude_graphdriver_btrfs containers_image_openpgp exclude_graphdriver_devicemapper
 
-# ── multipass-k8s-lab 설정 ────────────────────────────────────────────────────
-# multipass-k8s-lab 클러스터 kubeconfig (기본값: 프로젝트 상대경로)
+# ── multipass-k8s-lab / Harbor 설정 ──────────────────────────────────────────
 MULTIPASS_KUBECONFIG ?= $(shell realpath ../multipass-k8s-lab/kubeconfig 2>/dev/null || echo "")
-# Harbor 레지스트리 주소 (Cilium L2 LB IP로 접근)
 MULTIPASS_REGISTRY   ?= harbor.10.113.24.96.nip.io
+IMAGE                ?= $(MULTIPASS_REGISTRY)/nodeforge/controlplane:latest
 
 # ── 포맷 ──────────────────────────────────────────────────────────────────────
 fmt:
@@ -31,68 +31,85 @@ lint-fix:
 test:
 	go test -tags "$(BUILDTAGS)" -v -race -cover ./...
 
-# ── 통합 테스트 (kind 클러스터) ───────────────────────────────────────────────
-test-integration:
-	KUBECONFIG=~/.kube/config go test -v -tags "integration $(BUILDTAGS)" ./... -timeout 10m
-
 # ── 통합 테스트 (multipass-k8s-lab VM 클러스터) ───────────────────────────────
 # 사전 조건:
-#   1. multipass-k8s-lab 클러스터가 실행 중이어야 합니다.
-#   2. make deploy-multipass 가 먼저 실행되어 레지스트리/RBAC이 배포돼야 합니다.
+#   1. multipass-k8s-lab 클러스터가 실행 중
+#   2. Harbor가 실행 중  (scripts/host/harbor-resume.sh)
+#   3. make deploy-multipass 완료
 #
-# 실행 방법:
-#   make deploy-multipass          # 클러스터 리소스 배포 (최초 1회)
-#   make test-integration-multipass
-#
-# 또는 한 번에:
+# 실행:
 #   make deploy-multipass test-integration-multipass
 test-integration-multipass: build
 	@if [ -z "$(MULTIPASS_KUBECONFIG)" ]; then \
-	    echo "ERROR: multipass-k8s-lab/kubeconfig not found. Run cluster first." >&2; exit 1; \
+	    echo "ERROR: multipass-k8s-lab/kubeconfig not found. 클러스터를 먼저 실행하세요." >&2; exit 1; \
 	fi
 	@echo "==> Cluster: $$(KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl get nodes --no-headers 2>&1 | awk '{print $$1, $$2}' | tr '\n' '  ')"
 	@echo "==> Registry: $(MULTIPASS_REGISTRY) (Harbor)"
-	@echo "==> Starting NodeForge (local binary)..."
+	@echo "==> NodeForge 로컬 바이너리 실행 중..."
 	@KUBECONFIG=$(MULTIPASS_KUBECONFIG) \
 	    NODEFORGE_REGISTRY_ADDR=$(MULTIPASS_REGISTRY) \
 	    ./bin/nodeforge &
 	@NF_PID=$$!; \
 	sleep 3; \
-	echo "==> Running integration tests (pid=$$NF_PID)..."; \
+	echo "==> 통합 테스트 실행 (pid=$$NF_PID)..."; \
 	KUBECONFIG=$(MULTIPASS_KUBECONFIG) \
 	    NODEFORGE_REGISTRY_ADDR=$(MULTIPASS_REGISTRY) \
 	    go test -v -tags "integration $(BUILDTAGS)" ./pkg/build/... -timeout 12m; \
 	TEST_EXIT=$$?; \
-	echo "==> Stopping NodeForge (pid=$$NF_PID)..."; \
+	echo "==> NodeForge 종료 (pid=$$NF_PID)..."; \
 	kill $$NF_PID 2>/dev/null || true; \
 	exit $$TEST_EXIT
 
-# ── multipass 클러스터 리소스 배포 ────────────────────────────────────────────
+# ── 클러스터 리소스 배포 (deploy/ + k8s/) ─────────────────────────────────────
+# 순서: 네임스페이스 → RBAC → NodeForge → GRPCRoute
 deploy-multipass:
 	@if [ -z "$(MULTIPASS_KUBECONFIG)" ]; then \
 	    echo "ERROR: multipass-k8s-lab/kubeconfig not found." >&2; exit 1; \
 	fi
-	@echo "==> Applying NodeForge cluster resources..."
-	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/
-	@echo "==> Waiting for registry pod to be ready..."
-	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl rollout status deployment/nodeforge-registry \
-	    -n nodeforge-system --timeout=120s
-	@echo "==> Registry ready at $(MULTIPASS_REGISTRY)"
+	@echo "==> NodeForge 클러스터 리소스 배포..."
+	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/00-namespaces.yaml
+	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/02-rbac.yaml
+	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/03-nodeforge.yaml
+	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/04-grpcroute.yaml
+	@echo "==> NodeForge Deployment 준비 대기..."
+	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl rollout status deployment/nodeforge-controlplane \
+	    -n nodeforge-system --timeout=180s
+	@echo "==> 배포 완료: grpc://nodeforge.10.113.24.96.nip.io:80"
 
-# ── multipass 클러스터 리소스 제거 ────────────────────────────────────────────
+# ── 클러스터 리소스 제거 ──────────────────────────────────────────────────────
 undeploy-multipass:
 	@if [ -z "$(MULTIPASS_KUBECONFIG)" ]; then \
 	    echo "ERROR: multipass-k8s-lab/kubeconfig not found." >&2; exit 1; \
 	fi
-	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl delete -f deploy/ --ignore-not-found=true
+	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl delete -f deploy/04-grpcroute.yaml --ignore-not-found=true
+	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl delete -f deploy/03-nodeforge.yaml --ignore-not-found=true
+	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl delete -f deploy/02-rbac.yaml      --ignore-not-found=true
 
-# ── 빌드 ──────────────────────────────────────────────────────────────────────
+# ── 로컬 바이너리 빌드 ────────────────────────────────────────────────────────
 build:
 	go build -tags "$(BUILDTAGS)" -o bin/nodeforge ./cmd/controlplane/...
 
+# ── vendor 생성 (컨테이너 이미지 빌드 전 필요) ────────────────────────────────
+# go.mod의 replace directive(podbridge5)가 로컬 경로를 가리키므로
+# vendor/ 에 복사해야 Dockerfile 내 빌드가 가능하다.
+vendor:
+	go work vendor
+
+# ── NodeForge 이미지 빌드 + Harbor push ───────────────────────────────────────
+# 사전 조건:
+#   podman login harbor.10.113.24.96.nip.io   (최초 1회)
+#
+# 실행:
+#   make push-image
+#   make push-image IMAGE=harbor.10.113.24.96.nip.io/nodeforge/controlplane:v1.0.0
+push-image: vendor
+	podman build \
+	    -t $(IMAGE) \
+	    -f Dockerfile \
+	    .
+	podman push $(IMAGE)
+
 # ── proto 생성 ────────────────────────────────────────────────────────────────
-# api-protos 레포의 .proto 파일을 기준으로 생성.
-# protoc-gen-go, protoc-gen-go-grpc 플러그인 필요.
 proto:
 	@mkdir -p $(PROTO_OUT)
 	$(PROTOC) --proto_path=../api-protos/protos \
@@ -102,12 +119,12 @@ proto:
 
 # ── 커버리지 ──────────────────────────────────────────────────────────────────
 coverage:
-	go test -coverprofile=coverage.out ./...
+	go test -tags "$(BUILDTAGS)" -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out | tail -1
 
 # ── 정리 ──────────────────────────────────────────────────────────────────────
 clean:
-	rm -rf bin/ coverage.out $(PROTO_OUT)
+	rm -rf bin/ vendor/ coverage.out $(PROTO_OUT)
 
-# ── 전체 (포맷 → 린트 → 테스트) ──────────────────────────────────────────────
-all: fmt lint test
+# ── 전체 (포맷 → 테스트 → 빌드) ──────────────────────────────────────────────
+all: fmt test build
