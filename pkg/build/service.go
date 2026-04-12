@@ -63,7 +63,7 @@ func (s *Service) BuildAndRegister(req *nfv1.BuildRequest, stream grpc.ServerStr
 		})
 	}
 
-	destination := fmt.Sprintf("%s/%s:latest", registryAddr(), sanitizeName(req.ToolName))
+	destination := fmt.Sprintf("%s/library/%s:latest", registryAddr(), sanitizeName(req.ToolName))
 
 	// ── L2: buildah build + push ─────────────────────────────────────────────────
 
@@ -93,7 +93,11 @@ func (s *Service) BuildAndRegister(req *nfv1.BuildRequest, stream grpc.ServerStr
 	if len(reqID) > 8 {
 		reqID = reqID[:8]
 	}
-	smokeJob := validate.SmokeJobSpec("nfsmoke-"+sanitizeName(reqID), imageWithDigest)
+	jobSuffix := sanitizeName(reqID)
+	if jobSuffix == "" {
+		jobSuffix = fmt.Sprintf("%04x", time.Now().UnixMilli()%0xFFFF)
+	}
+	smokeJob := validate.SmokeJobSpec("nfsmoke-"+jobSuffix, imageWithDigest)
 	_ = send(nfv1.BuildEventKind_BUILD_EVENT_KIND_LOG, "L3: submitting dry-run...")
 
 	dryResult := s.validator.DryRunJob(ctx, smokeJob)
