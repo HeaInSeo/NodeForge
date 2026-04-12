@@ -1,64 +1,42 @@
 # RegisteredTool v0.2 설계
 
-## 배경 — v0.1이 부족한 이유
+## v0.1 이후 무엇을 바꾸는가
 
-v0.1은 정적 툴 계약(static tool contract)의 기반을 잘 잡았다. 그러나 관리자→사용자 UI 전달 경로를 실제로 지탱하기 위해 필요한 세 가지 축이 빠져 있다.
+v0.1은 정적 툴 계약의 골격을 잡았다. v0.2는 두 가지만 추가한다.
 
-1. **관리자가 오류를 수정할 수 없다.** Dockerfile 원문이 없으므로 빌드가 실패했을 때 무엇을 고쳐야 하는지 알 수 없다.
-2. **사용자 UI가 툴을 표시할 수 없다.** 레이블, 설명, 카테고리, 태그가 없어 팔레트 렌더링이 불가능하다.
-3. **`toolRef`가 불안정하다.** `casHash`는 리빌드 시 변경되므로 파이프라인이 이것을 참조하면 저장된 파이프라인이 리빌드 즉시 망가진다.
+1. **`display` 섹션** — 사용자 UI 팔레트가 spec을 파싱하지 않고 툴을 표시하기 위한 최소 메타데이터
+2. **`identity.stableRef`** — UI 검색·카탈로그 탐색 전용 식별자. 파이프라인 pinning에는 사용하지 않는다.
 
-v0.2는 이 세 가지 축을 보완하고, 관리자 라이프사이클 워크플로를 명시한다.
-
----
-
-## 핵심 결정
-
-### 결정 1 — stableRef / revision 분리
-
-```
-identity.stableRef = tool + version          ← 사람이 참조하는 불변 이름
-identity.revision   = 1, 2, 3, …            ← 같은 tool+version 내 리빌드 카운터
-casHash             = SHA256(spec 직렬화)     ← 콘텐츠 식별자, 리빌드마다 바뀜
-```
-
-파이프라인의 `toolRef`는 `stableRef`를 사용한다(`casHash`를 사용하지 않는다).  
-NodeForge는 `stableRef`로 조회 시 `phase: Active`인 revision 중 가장 최신을 반환한다.
-
-### 결정 2 — Dockerfile 원문 보존
-
-`provenance.build.dockerfileContent`에 원문을 저장한다.  
-관리자가 NodeKit에서 툴을 열면 이 필드의 내용이 에디터에 복원되어 수정 후 재빌드가 가능하다.
-
-### 결정 3 — display 섹션
-
-사용자 UI가 spec을 파싱하지 않고도 팔레트를 렌더링하기 위한 최소 표시 정보를 별도 섹션에 둔다.
-
-### 결정 4 — lifecycle 상태 머신
-
-```
-Registered → Validating → Active
-                        → Retracted   (관리자 강제 회수)
-Active     → Deprecated               (새 revision 등록 시 이전 revision에 자동 적용)
-           → Superseded               (동일 stableRef의 더 높은 revision이 Active가 될 때)
-           → Retracted               (관리자 강제 회수)
-```
-
-### 결정 5 — 포트 호환성 검증 책임
-
-NodeForge가 `ValidatePortConnection` RPC를 제공한다.  
-DagEdit가 파이프라인을 저장하기 전에 이 RPC를 호출하여 upstream.output → downstream.input 연결이 유효한지 확인한다.  
-NodeKit(admin UI)은 이 RPC를 사용하지 않는다 — NodeKit은 단일 툴 계약만 본다.
+나머지(lifecycle 확장, supersedes, dockerfileContent, resourceProfile.defaultHint,
+ValidatePortConnection RPC)는 이 단계에서 넣지 않는다. 이유는 아래 "의도적 제외" 절에 기록한다.
 
 ---
 
-## v0.2 전체 YAML
+## 설계 원칙 — 변경 없음
+
+### 재현성
+
+파이프라인의 `toolRef`는 **`casHash`로 고정**한다.
+
+`stableRef`는 UI 검색·카탈로그 탐색에만 쓴다. NodeForge는 `stableRef`로 라우팅하거나
+최신 revision을 자동 반환하지 않는다. "같은 파이프라인 + 같은 데이터 = 같은 결과"를
+보장하는 유일한 방법은 실행 시점에 어떤 이미지가 쓰였는지 casHash로 추적하는 것이다.
+
+### 관심사 분리
+
+리소스 값(CPU/메모리/GPU)은 RegisteredTool 밖에 있다. `ResourceProfile`은 외부
+attachable 엔티티이고, 실제 값은 툴 계약의 변화 주기와 독립적으로 관리된다.
+"기본 힌트"라는 이름으로도 툴 안에 리소스 값을 넣지 않는다.
+
+---
+
+## v0.2 YAML
 
 ```yaml
-apiVersion: nodeforge.io/v1alpha2
+apiVersion: nodeforge.io/v1alpha1
 kind: RegisteredTool
 metadata:
-  name: bwa-mem-0.7.17-r1   # {tool}-{version}-r{revision}
+  name: bwa-mem-0.7.17   # {tool}-{version}. revision은 name에 넣지 않는다.
 
 spec:
   immutable:
@@ -67,8 +45,9 @@ spec:
     identity:
       tool: bwa-mem
       version: "0.7.17"
-      revision: 1              # 같은 tool+version 내 리빌드 카운터 (1부터 시작)
-      stableRef: "bwa-mem@0.7.17"   # 파이프라인 toolRef의 기준값
+      stableRef: "bwa-mem@0.7.17"
+      # stableRef 용도: 카탈로그 탐색, 팔레트 검색, 관리자 UI 조회
+      # stableRef 금지: 파이프라인 toolRef. 파이프라인은 반드시 casHash를 참조한다.
 
     # ── 2. 런타임 ─────────────────────────────────────────────────────────────
     runtime:
@@ -106,7 +85,7 @@ spec:
           shape: single
           class: secondary
 
-    # ── 4. 계보 (Dockerfile 원문 포함) ───────────────────────────────────────
+    # ── 4. 계보 ───────────────────────────────────────────────────────────────
     provenance:
       toolDefinitionId: "tdef-bwa-mem-001"
       digests:
@@ -119,17 +98,6 @@ spec:
           channels: [bioconda, conda-forge]
           dependencies:
             - bwa=0.7.17=h5bf99c6_8
-        dockerfileContent: |
-          FROM ubuntu:22.04 AS builder
-          RUN apt-get update && apt-get install -y wget bwa=0.7.17 && apt-get clean
-          COPY run.sh /app/run.sh
-          RUN chmod +x /app/run.sh
-          FROM ubuntu:22.04
-          COPY --from=builder /usr/bin/bwa /usr/bin/bwa
-          COPY --from=builder /app/run.sh /app/run.sh
-          ENTRYPOINT ["/app/run.sh"]
-      supersedes: null  # 이전 revision의 stableRef + revision. 첫 revision이면 null.
-      # 예시 (revision 2라면): "bwa-mem@0.7.17#1"
 
     # ── 5. 확장 포인트 ────────────────────────────────────────────────────────
     extensionPoints:
@@ -144,10 +112,7 @@ spec:
         resourceProfile:
           kind: ResourceProfile
           required: false
-          defaultHint:           # K8s Job 제출 시 요청값 기본값 (override 가능)
-            cpu: "2"
-            memory: "4Gi"
-            gpu: "0"
+          # 리소스 기본값은 여기 없다. 값은 ResourceProfile 엔티티 안에 있다.
 
         executionPolicy:
           kind: ExecutionPolicy
@@ -157,173 +122,167 @@ spec:
           kind: MaterializationPolicy
           required: false
 
-    # ── 6. 표시 정보 (UI 팔레트용) ──────────────────────────────────────────
+    # ── 6. 표시 정보 (v0.2 추가) ─────────────────────────────────────────────
     display:
       label: "BWA-MEM 0.7.17"
-      description: "Burrows-Wheeler Aligner — short-read DNA 정렬. paired-end FASTQ → BAM."
+      description: "Burrows-Wheeler Aligner — paired-end FASTQ → coordinate-sorted BAM."
       category: "Alignment"
       tags: ["dna", "alignment", "bwa", "short-read"]
-      iconUrl: null               # 선택 사항. 없으면 UI가 category 기본 아이콘 사용.
+      # iconUrl은 넣지 않는다. CDN/업로드 인프라가 없는 상태에서 필드만 앞서 나올 이유가 없다.
 
 status:
-  casHash: "sha256:cas-bwa-001"
-  phase: Active           # Registered | Validating | Active | Deprecated | Superseded | Retracted
+  casHash: "sha256:cas-bwa-001"   # 파이프라인 toolRef의 유일한 고정 기준
+  phase: Active                    # v0.2 허용 상태: Active | Retracted
   registeredAt: "2026-04-10T10:00:00Z"
-  activeAt: "2026-04-10T10:07:00Z"    # phase가 Active로 전환된 시각
-  deprecatedAt: null
-  retractedAt: null
-  retractReason: null     # Retracted 시 관리자가 입력한 사유
   validation:
-    phase: Passed         # Pending | Running | Passed | Failed
+    phase: Passed                  # Pending | Running | Passed | Failed
     lastValidatedAt: "2026-04-10T10:05:00Z"
-    failures: []          # ValidationFailure 목록 (phase: Failed일 때 채워짐)
 ```
 
 ---
 
-## 필드별 채택 이유 (v0.1 대비 변경/추가 항목)
+## 현재 코드와의 갭
 
-### identity.revision + stableRef
+v0.2 YAML 기준으로 현재 proto (`nodeforge.proto`)와 `catalog.go`에 없는 것을 기록한다.
+이 갭이 다음 구현 단계의 입력이다.
 
-`casHash`는 콘텐츠 식별자다. 리빌드하면 바뀐다.  
-파이프라인이 `casHash`를 `toolRef`로 사용하면 관리자가 Dockerfile을 한 줄만 고쳐도 파이프라인 전체가 깨진다.  
-`stableRef`(`tool@version`)는 리빌드 전후로 동일하다. NodeForge는 `stableRef`로 조회 시 Active revision 최신을 반환한다.  
-`revision`은 같은 `stableRef` 내에서 몇 번째 빌드인지 추적한다. 관리자 감사 로그에도 쓰인다.
+### proto — `RegisteredToolDefinition` 메시지
+
+| 필드 | 현재 상태 | 필요한 변경 |
+|------|-----------|-------------|
+| `input_names []string` | 있음 | `repeated PortSpec inputs`로 교체 |
+| `output_names []string` | 있음 | `repeated PortSpec outputs`로 교체 |
+| `image_uri` | 있음 (digest 포함) | 유지 |
+| `digest` | 있음 | `provenance.digests.image`에 해당. 유지 |
+| `environment_spec` | 있음 | `provenance.build.spec`에 해당. 유지 |
+| `command` | **없음** | `runtime.command` 추가 필요 |
+| `stable_ref` | **없음** | `identity.stable_ref` 추가 필요 |
+| `display.*` | **없음** | `DisplaySpec` 메시지 추가 필요 |
+| `phase` | **없음** | enum 또는 string 추가 필요 |
+| `validation` | **없음** | `ValidationStatus` 서브메시지 추가 필요 |
+| `parameters[]` | **없음** | `extensionPoints.parameters` 추가 필요 |
+
+새로 필요한 메시지:
+
+```protobuf
+message PortSpec {
+  string name     = 1;
+  string role     = 2;
+  string format   = 3;
+  string shape    = 4;  // "single" | "pair"
+  bool   required = 5;
+  string class    = 6;  // "primary" | "secondary" (output 전용)
+  map<string, string> constraints = 7;
+}
+
+message DisplaySpec {
+  string label       = 1;
+  string description = 2;
+  string category    = 3;
+  repeated string tags = 4;
+}
+
+message ValidationStatus {
+  string phase             = 1;  // "Pending" | "Running" | "Passed" | "Failed"
+  int64  last_validated_at = 2;
+  repeated string failures = 3;
+}
+
+message ParameterSpec {
+  string name     = 1;
+  string type     = 2;
+  string default  = 3;  // JSON 직렬화 값
+  repeated int64 range = 4;  // [min, max], integer 전용
+  string env_key  = 5;
+}
+```
+
+### proto — `RegisterToolRequest` 메시지
+
+| 필드 | 현재 상태 | 필요한 변경 |
+|------|-----------|-------------|
+| `input_names` / `output_names` | 있음 | `PortSpec`으로 교체 |
+| `stable_ref` | **없음** | 추가 필요 |
+| `display` | **없음** | `DisplaySpec` 추가 필요 |
+| `command` | **없음** | 추가 필요 |
+| `parameters` | **없음** | `repeated ParameterSpec` 추가 필요 |
+
+### catalog.go
+
+| 기능 | 현재 상태 | 필요한 변경 |
+|------|-----------|-------------|
+| casHash로 단건 조회 | 있음 (`GetTool`) | 유지 |
+| stableRef로 목록 조회 | **없음** | `ListByStableRef(stableRef string)` 추가 |
+| phase 필터 조회 | **없음** | `ListActive()` 추가 (UI 팔레트용) |
+| 전체 목록 조회 | 있음 (`List`) | 유지 |
+
+`ListByStableRef`는 casHash 라우팅과 독립적으로 동작한다.
+파이프라인 실행 경로는 여전히 `GetTool(casHash)`만 사용한다.
+
+---
+
+## stableRef 사용 범위 명시
+
+모호함을 없애기 위해 stableRef를 쓸 수 있는 곳과 없는 곳을 명시한다.
+
+| 위치 | stableRef 허용 여부 |
+|------|-------------------|
+| 관리자 카탈로그 탐색 (NodeKit AdminToolList) | 허용 |
+| 사용자 UI 팔레트 검색 | 허용 |
+| 팔레트에서 툴 드래그 후 파이프라인 저장 | **금지** — casHash로 저장 |
+| 파이프라인 실행 시 툴 조회 | **금지** — casHash로 조회 |
+| 빌드 로그·감사 추적 | **금지** — casHash로 추적 |
+
+팔레트에서 사용자가 툴을 드래그하면 DagEdit는 해당 툴의 casHash를 파이프라인 노드에 기록한다.
+사용자는 "BWA-MEM 0.7.17"을 선택했다고 생각하지만, 저장되는 것은 그 시점의 casHash다.
+
+---
+
+## 의도적 제외 — 이유 포함
+
+### stableRef → 최신 Active revision 자동 라우팅
+
+**제외 이유**: 재현성 원칙과 정면 충돌한다.
+파이프라인이 stableRef를 참조하고 NodeForge가 최신 Active revision을 반환하면,
+관리자가 같은 tool+version을 리빌드하는 순간 기존 파이프라인이 암묵적으로 다른 툴을 실행한다.
+"같은 파이프라인 + 같은 데이터"인데 실행 결과가 달라진다.
+
+### resourceProfile.defaultHint
+
+**제외 이유**: 리소스 정책과 툴 계약을 다시 결합한다.
+ResourceProfile은 외부 attachable 엔티티이며 툴 계약과 독립적인 변화 주기를 갖는다.
+"힌트"라는 포장이어도 값이 툴 안에 들어오는 순간 두 주기가 섞인다.
 
 ### provenance.build.dockerfileContent
 
-빌드 성공 후 NodeForge가 이 필드에 Dockerfile 원문을 저장한다.  
-관리자가 NodeKit에서 툴을 열면 이 필드가 Dockerfile 에디터에 복원된다.  
-Dockerfile 없이는 관리자가 오류를 수정하고 재빌드할 방법이 없다.
+**제외 이유**: 문제의식(관리자가 오류를 고치려면 빌드 입력이 필요하다)은 맞지만
+해결 방식이 불완전하다. 실제 빌드 입력은 Dockerfile 하나가 아니다.
+run.sh, conda spec, COPY 대상 파일, 보조 스크립트가 빠지면
+"원문 복원 가능"이라는 환상을 줄 뿐 실제 재빌드는 실패할 수 있다.
+올바른 해결은 `buildContextRef` 또는 `sourceDraftRef` 형태의 참조이며,
+그것은 아티팩트 스토리지 설계가 선행되어야 하므로 이 단계에서 넣지 않는다.
 
-### provenance.supersedes
+### 6단계 lifecycle / supersedes / RetractTool RPC
 
-revision N을 등록하면 NodeForge가 revision N-1의 `supersedes` 포인터를 자동으로 채운다.  
-이로써 "이 버전이 무엇을 대체했는가"라는 계보가 RegisteredTool 안에서 자기 기술(self-describing)된다.
+**제외 이유**: 지금 목표는 "정적 툴 계약 고정"이다.
+lifecycle 확장과 supersedes는 카탈로그 운영 모델이며,
+그 설계는 툴 계약이 안정된 후에 별도로 다룬다.
+v0.2 status.phase는 `Active`와 `Retracted` 두 값만 허용한다.
 
-### display
+### ValidatePortConnection RPC
 
-사용자 UI(DagEdit의 팔레트)가 spec을 파싱하지 않고도 툴을 표시할 수 있어야 한다.  
-`label`은 팔레트 카드 제목, `description`은 툴팁, `category`는 그룹핑, `tags`는 검색에 쓰인다.  
-이 필드들은 `spec.immutable` 안에 있으므로 등록 후 변경되지 않는다.
-
-### extensionPoints.attachments.resourceProfile.defaultHint
-
-K8s Job을 제출할 때 ResourceProfile이 첨부되지 않으면 기본값으로 사용된다.  
-cpu/memory/gpu 세 값만 둔다. 이것이 없으면 Job이 노드에 스케줄되지 못하거나 과다 요청된다.  
-실제 ResourceProfile이 첨부되면 이 힌트는 무시된다.
-
-### status.phase 상태 머신
-
-`phase`가 없으면 관리자가 "이 툴을 써도 되는가?"를 판단할 수 없다.  
-v0.2의 6개 상태는 최소한이다. 각 상태 전환은 NodeForge가 처리하며, 관리자가 직접 변경하는 상태는 `Retracted`뿐이다.
+**제외 이유**: 유용한 기능이지만 Tool Schema 문서의 범위가 아니다.
+이것은 catalog service / validation service 기능이고,
+포트 역할(role) 온톨로지 설계와 함께 서비스 API 설계 단계에서 다룬다.
 
 ---
 
-## 관리자 재빌드 워크플로
+## v0.3으로 이월
 
-```
-1. 관리자가 NodeKit에서 기존 툴 선택
-   → NodeKit이 GetTool(casHash) 호출
-   → RegisteredTool.provenance.build.dockerfileContent를 에디터에 복원
-
-2. 관리자가 Dockerfile 수정 후 재빌드 요청
-   → NodeKit이 BuildRequest 전송 (dockerfileContent 포함, stableRef 포함)
-   → NodeForge가 이미지 빌드 + L3/L4 통과 후 RegisteredTool 생성
-     - revision = 이전 revision + 1
-     - supersedes = "bwa-mem@0.7.17#N-1"
-   → 이전 revision status.phase → Superseded (자동)
-   → 새 revision status.phase → Active
-
-3. 파이프라인이 stableRef = "bwa-mem@0.7.17"을 참조하고 있으면
-   → NodeForge는 Active revision 최신(새 revision)을 반환
-   → 파이프라인 YAML 변경 없이 자동으로 새 이미지로 실행됨
-```
-
-```
-Retract 워크플로:
-1. 관리자가 특정 revision을 회수 결정 (보안 취약점 발견 등)
-2. NodeKit이 RetractTool(casHash, reason) 호출
-3. NodeForge: 해당 revision phase → Retracted, retractReason 기록
-4. 해당 revision이 Active였다면 NodeForge는 이전 revision 중 Active 상태인 것으로 자동 fallback
-   → 없으면 stableRef 전체가 일시 중단 상태가 됨 (NodeForge가 경고 반환)
-```
-
----
-
-## 포트 호환성 검증 — ValidatePortConnection RPC
-
-포트 연결 검증은 두 툴의 스키마를 모두 알아야 한다. 이 책임은 NodeForge가 진다.
-
-```protobuf
-rpc ValidatePortConnection(ValidatePortConnectionRequest)
-    returns (ValidatePortConnectionResponse);
-
-message ValidatePortConnectionRequest {
-  string upstream_cas_hash = 1;    // 또는 upstream_stable_ref
-  string upstream_output_name = 2;
-  string downstream_cas_hash = 3;  // 또는 downstream_stable_ref
-  string downstream_input_name = 4;
-}
-
-message ValidatePortConnectionResponse {
-  bool compatible = 1;
-  repeated string violations = 2;  // 불호환 사유 목록
-}
-```
-
-검증 규칙 (최소):
-- upstream output.role == downstream input.role
-- upstream output.format == downstream input.format
-- shape 호환: single→single (O), pair→single (X), single→pair (X), pair→pair (O)
-
-DagEdit는 파이프라인 엣지 추가 시 이 RPC를 호출한다. NodeKit은 이 RPC를 사용하지 않는다.
-
----
-
-## v0.1에서 v0.2로 달라진 것 요약
-
-| 항목 | v0.1 | v0.2 |
-|------|------|------|
-| 파이프라인 참조 기준 | casHash (불안정) | stableRef + revision (안정) |
-| Dockerfile 보존 | 없음 | provenance.build.dockerfileContent |
-| 관리자 재빌드 후 계보 | 없음 | provenance.supersedes |
-| UI 표시 정보 | 없음 | display (label/description/category/tags) |
-| 리소스 기본값 | 없음 | resourceProfile.defaultHint |
-| 라이프사이클 상태 | phase: Registered only | 6개 상태 + 전환 시각 기록 |
-| 포트 검증 책임 | 미정 | NodeForge ValidatePortConnection RPC |
-| 회수(Retract) 워크플로 | 없음 | RetractTool RPC + retractReason |
-
----
-
-## v0.2에서 의도적으로 제외한 것 (v0.1 제외 목록 유지)
-
-v0.1에서 제외했던 항목은 그대로 유지한다. 추가로 v0.2에서도 제외:
-
-- `ValidatePortConnection`의 semantic typing 확장 (role 온톨로지 체계)
-- stableRef 조회 시 revision 지정 접근 (항상 최신 Active 반환)
-- `display.iconUrl`의 실제 CDN 업로드 워크플로
-- Retract 후 파이프라인 자동 실행 차단 메커니즘 (DagEdit 책임)
-- 포트의 `shape: row / list / collection` 확장 (v0.1 미완으로 이월)
-
----
-
-## v0.3으로 넘기는 것
-
-- stableRef @ revision 지정 접근 (audit replay 시 특정 revision 재현)
-- 포트 role 온톨로지 등록 RPC (`RegisterPortRole`)
+- lifecycle 확장: Deprecated / Superseded / Retracted 전이, RetractTool RPC
+- buildContextRef / sourceDraftRef — 빌드 입력 전체 보존
+- stableRef 조회 시 revision 지정 접근 (감사 재현용)
+- role 온톨로지 등록 (`RegisterPortRole`)
+- ValidatePortConnection RPC
 - `shape` 확장: row / list / collection
-- attachment 대상(ExecutionPolicy, MaterializationPolicy)의 구체 스키마
-- `display.iconUrl` 업로드 및 CDN 통합
-- 파이프라인 실행 시 Retracted 툴 자동 차단 (DagEdit 연동)
-
----
-
-## 구현 순서 제안
-
-1. **proto 변경**: `RegisteredToolDefinition`에 revision, stableRef, display, dockerfileContent, supersedes, defaultHint, activeAt/deprecatedAt/retractedAt/retractReason 필드 추가
-2. **catalog.go 변경**: stableRef 인덱스 추가, ListByStableRef + GetActiveByStableRef 메서드
-3. **service.go 변경**: 빌드 성공 후 revision 자동 증가, 이전 revision → Superseded 처리
-4. **ValidatePortConnection RPC 추가**
-5. **RetractTool RPC 추가**
-6. **NodeKit**: GetTool 응답에서 dockerfileContent를 에디터에 복원하는 "툴 불러오기" 기능
+- iconUrl CDN 통합
