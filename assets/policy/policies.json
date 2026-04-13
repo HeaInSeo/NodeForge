@@ -1,0 +1,47 @@
+[
+  {
+    "rule_id": "DFM001",
+    "title": "Exactly one FROM required",
+    "description": "User Dockerfile must contain exactly one FROM instruction."
+  },
+  {
+    "rule_id": "DFM002",
+    "title": "AS builder alias required",
+    "description": "FROM must include AS builder alias (e.g. FROM ubuntu:22.04 AS builder)."
+  },
+  {
+    "rule_id": "DFM003",
+    "title": "AS final stage reserved",
+    "description": "The alias 'final' is reserved; do not define it in user Dockerfiles."
+  },
+  {
+    "rule_id": "DFM004",
+    "title": "COPY --from=builder prohibited",
+    "description": "COPY --from=builder must not appear in user-submitted Dockerfiles."
+  },
+  {
+    "rule_id": "DGF001",
+    "title": "conda/mamba install version pinning required",
+    "description": "RUN conda/mamba/micromamba install must specify exact versions (pkg=version) or use -f/--file."
+  },
+  {
+    "rule_id": "DGF002",
+    "title": "pip install version pinning required",
+    "description": "RUN pip install must specify exact versions (pkg==version) or use -r/--requirement."
+  },
+  {
+    "rule_id": "DSF001",
+    "title": "Non-root USER required",
+    "description": "Dockerfile must specify a non-root USER instruction (not root or UID 0)."
+  },
+  {
+    "rule_id": "DSF002",
+    "title": "No secrets in ENV",
+    "description": "ENV instructions must not contain variables named PASSWORD, SECRET, API_KEY, TOKEN, or PASSWD."
+  },
+  {
+    "rule_id": "DSF003",
+    "title": "No remote ADD URLs",
+    "description": "ADD instruction must not reference remote http:// or https:// URLs; use RUN curl/wget instead."
+  }
+]
