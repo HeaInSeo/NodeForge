@@ -32,6 +32,8 @@ func NewCatalog() *Catalog {
 	if dir == "" {
 		dir = defaultCatalogDir
 	}
+	dir = filepath.Clean(dir)
+	//nolint:gosec // CATALOG_DIR is an operator-controlled storage root, intentionally configurable.
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		fmt.Fprintf(os.Stderr, "catalog: mkdir %s: %v\n", dir, err)
 	}
@@ -66,7 +68,8 @@ func (c *Catalog) List() ([]*nfv1.RegisteredToolDefinition, error) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".tooldefinition") {
 			continue
 		}
-		path := filepath.Join(c.dir, e.Name())
+		path := filepath.Join(c.dir, filepath.Base(e.Name()))
+		//nolint:gosec // file names come from ReadDir on the catalog root and are reduced to a base name.
 		data, rerr := os.ReadFile(path)
 		if rerr != nil {
 			continue
@@ -80,8 +83,8 @@ func (c *Catalog) List() ([]*nfv1.RegisteredToolDefinition, error) {
 	return tools, nil
 }
 
-// ListActive returns only tools with phase == "Active".
-// UI 팔레트가 사용자에게 표시할 툴 목록 조회에 사용된다.
+// ListActive returns only tools with lifecycle_phase == "Active".
+// Catalog 노출 규칙: lifecycle_phase = Active 기준만. integrity_health는 영향 없음.
 func (c *Catalog) ListActive() ([]*nfv1.RegisteredToolDefinition, error) {
 	all, err := c.List()
 	if err != nil {
@@ -89,7 +92,7 @@ func (c *Catalog) ListActive() ([]*nfv1.RegisteredToolDefinition, error) {
 	}
 	out := make([]*nfv1.RegisteredToolDefinition, 0, len(all))
 	for _, t := range all {
-		if t.Phase == "Active" {
+		if t.LifecyclePhase == "Active" {
 			out = append(out, t)
 		}
 	}
@@ -150,7 +153,8 @@ func (s *ToolRegistryService) RegisterTool(
 		Outputs:          req.Outputs,
 		Display:          req.Display,
 		Command:          req.Command,
-		Phase:            "Active",
+		LifecyclePhase:   "Active",
+		IntegrityHealth:  "Healthy",
 		Validation: &nfv1.ValidationStatus{
 			Phase:           "Passed",
 			LastValidatedAt: time.Now().Unix(),
@@ -168,10 +172,17 @@ func (s *ToolRegistryService) RegisterTool(
 	return &nfv1.RegisterToolResponse{CasHash: hash, Tool: tool}, nil
 }
 
-// ListTools returns all registered tools from the catalog.
+// ListTools returns registered tools, optionally filtered by stable_ref.
 func (s *ToolRegistryService) ListTools(
-	_ context.Context, _ *nfv1.ListToolsRequest,
+	_ context.Context, req *nfv1.ListToolsRequest,
 ) (*nfv1.ListToolsResponse, error) {
+	if req.GetStableRef() != "" {
+		tools, err := s.catalog.ListByStableRef(req.GetStableRef())
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "catalog list by stable_ref: %v", err)
+		}
+		return &nfv1.ListToolsResponse{Tools: tools}, nil
+	}
 	tools, err := s.catalog.List()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "catalog list: %v", err)
