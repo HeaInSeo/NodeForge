@@ -40,8 +40,11 @@ func NewCatalog() *Catalog {
 	return &Catalog{dir: dir}
 }
 
-// Save marshals tool to JSON, computes SHA256, and writes {hash}.tooldefinition.
-// Returns the hex-encoded hash used as the CAS key.
+// Save marshals tool to JSON, computes SHA256 of that JSON, and writes
+// {hash}.tooldefinition. Returns the hex-encoded hash used as the CAS key.
+// Note: if tool.CasHash is already set it contributes to the hash; use
+// SaveWithCasHash to get stable CAS semantics (hash derived from content
+// without CasHash, stored once with CasHash included).
 func (c *Catalog) Save(tool *nfv1.RegisteredToolDefinition) (string, error) {
 	data, err := json.Marshal(tool)
 	if err != nil {
@@ -52,6 +55,35 @@ func (c *Catalog) Save(tool *nfv1.RegisteredToolDefinition) (string, error) {
 
 	path := filepath.Join(c.dir, hash+".tooldefinition")
 	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return "", fmt.Errorf("write %s: %w", path, err)
+	}
+	return hash, nil
+}
+
+// SaveWithCasHash computes the CAS hash from the tool's content (excluding
+// the cas_hash field itself), sets tool.CasHash, and writes exactly one
+// {hash}.tooldefinition file. Returns the stable CAS hash.
+// This is the correct method to use from RegisterTool.
+func (c *Catalog) SaveWithCasHash(tool *nfv1.RegisteredToolDefinition) (string, error) {
+	// 1. Marshal without CasHash to get the stable content hash.
+	prev := tool.CasHash
+	tool.CasHash = ""
+	contentData, err := json.Marshal(tool)
+	tool.CasHash = prev // restore so caller is not surprised
+	if err != nil {
+		return "", fmt.Errorf("marshal for hash: %w", err)
+	}
+	sum := sha256.Sum256(contentData)
+	hash := hex.EncodeToString(sum[:])
+
+	// 2. Set CasHash and write once under that hash.
+	tool.CasHash = hash
+	fullData, err := json.Marshal(tool)
+	if err != nil {
+		return "", fmt.Errorf("marshal with cas_hash: %w", err)
+	}
+	path := filepath.Join(c.dir, hash+".tooldefinition")
+	if err := os.WriteFile(path, fullData, 0o600); err != nil {
 		return "", fmt.Errorf("write %s: %w", path, err)
 	}
 	return hash, nil
@@ -160,14 +192,9 @@ func (s *ToolRegistryService) RegisterTool(
 			LastValidatedAt: time.Now().Unix(),
 		},
 	}
-	hash, err := s.catalog.Save(tool)
+	hash, err := s.catalog.SaveWithCasHash(tool)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "catalog save: %v", err)
-	}
-	tool.CasHash = hash
-	// Re-save with CasHash populated.
-	if _, err = s.catalog.Save(tool); err != nil {
-		return nil, status.Errorf(codes.Internal, "catalog re-save with cas_hash: %v", err)
 	}
 	return &nfv1.RegisterToolResponse{CasHash: hash, Tool: tool}, nil
 }
