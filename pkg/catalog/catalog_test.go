@@ -8,6 +8,7 @@ import (
 	nfv1 "github.com/HeaInSeo/api-protos/gen/go/nodeforge/v1"
 
 	"github.com/HeaInSeo/NodeForge/pkg/catalog"
+	"github.com/HeaInSeo/NodeForge/pkg/index"
 )
 
 func newTestCatalog(t *testing.T) *catalog.Catalog {
@@ -15,6 +16,16 @@ func newTestCatalog(t *testing.T) *catalog.Catalog {
 	dir := t.TempDir()
 	t.Setenv("CATALOG_DIR", dir)
 	return catalog.NewCatalog()
+}
+
+func newTestService(t *testing.T) (*catalog.ToolRegistryService, *catalog.Catalog) {
+	t.Helper()
+	cat := newTestCatalog(t)
+	store, err := index.NewAt(t.TempDir())
+	if err != nil {
+		t.Fatalf("index.NewAt: %v", err)
+	}
+	return catalog.NewToolRegistryService(cat, store), cat
 }
 
 // TestSave_SameContent_SameHash verifies that identical content produces the same CAS key.
@@ -107,8 +118,7 @@ func TestList_ReturnsAllSaved(t *testing.T) {
 
 // TestRegisterTool_CasHashPopulated verifies RegisterTool sets CasHash on the returned tool.
 func TestRegisterTool_CasHashPopulated(t *testing.T) {
-	cat := newTestCatalog(t)
-	svc := catalog.NewToolRegistryService(cat)
+	svc, _ := newTestService(t)
 
 	req := &nfv1.RegisterToolRequest{
 		RequestId:        "req-001",
@@ -151,8 +161,7 @@ func TestRegisterTool_CasHashPopulated(t *testing.T) {
 // TestListTools_AfterRegister verifies ListTools returns previously registered tools.
 // Each RegisterTool now writes exactly one file (SaveWithCasHash), so exactly N tools expected.
 func TestListTools_AfterRegister(t *testing.T) {
-	cat := newTestCatalog(t)
-	svc := catalog.NewToolRegistryService(cat)
+	svc, _ := newTestService(t)
 
 	for i, name := range []string{"star", "salmon"} {
 		_, err := svc.RegisterTool(t.Context(), &nfv1.RegisterToolRequest{
@@ -186,8 +195,7 @@ func TestListTools_AfterRegister(t *testing.T) {
 // TestRegisterTool_V02RoundTrip verifies that all v0.2 fields survive the
 // RegisterTool → GetTool round-trip through CAS storage.
 func TestRegisterTool_V02RoundTrip(t *testing.T) {
-	cat := newTestCatalog(t)
-	svc := catalog.NewToolRegistryService(cat)
+	svc, _ := newTestService(t)
 
 	req := &nfv1.RegisterToolRequest{
 		RequestId:        "req-v02",
@@ -290,9 +298,13 @@ func TestRegisterTool_SingleFilePerRegistration(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CATALOG_DIR", dir)
 	cat := catalog.NewCatalog()
-	svc := catalog.NewToolRegistryService(cat)
+	store, err := index.NewAt(t.TempDir())
+	if err != nil {
+		t.Fatalf("index.NewAt: %v", err)
+	}
+	svc := catalog.NewToolRegistryService(cat, store)
 
-	_, err := svc.RegisterTool(t.Context(), &nfv1.RegisterToolRequest{
+	_, err = svc.RegisterTool(t.Context(), &nfv1.RegisterToolRequest{
 		ToolName: "bowtie2",
 		Digest:   "sha256:abc",
 		Version:  "2.5.0",
@@ -319,8 +331,7 @@ func TestRegisterTool_SingleFilePerRegistration(t *testing.T) {
 // TestListTools_StableRefFilter verifies that ListTools(stable_ref=X) returns
 // only tools matching X and ignores others.
 func TestListTools_StableRefFilter(t *testing.T) {
-	cat := newTestCatalog(t)
-	svc := catalog.NewToolRegistryService(cat)
+	svc, _ := newTestService(t)
 
 	// Register two tools: bwa@1.0 and bowtie2@2.0
 	for _, tc := range []struct{ name, version string }{
@@ -347,12 +358,91 @@ func TestListTools_StableRefFilter(t *testing.T) {
 		t.Errorf("expected bwa, got %q", resp.Tools[0].ToolName)
 	}
 
-	// Empty filter returns all
+	// Empty filter returns all Active tools
 	allResp, err := svc.ListTools(t.Context(), &nfv1.ListToolsRequest{})
 	if err != nil {
 		t.Fatalf("ListTools all: %v", err)
 	}
 	if len(allResp.Tools) != 2 {
 		t.Errorf("expected 2 tools total, got %d", len(allResp.Tools))
+	}
+}
+
+// TestListTools_ArtifactKindFilter verifies that artifact_kind filter works.
+func TestListTools_ArtifactKindFilter(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	// Register a tool (artifact_kind = "tool" by default)
+	if _, err := svc.RegisterTool(t.Context(), &nfv1.RegisterToolRequest{
+		ToolName: "bwa",
+		Version:  "1.0",
+		Digest:   "sha256:abc",
+	}); err != nil {
+		t.Fatalf("RegisterTool: %v", err)
+	}
+
+	// Filter for "tool" kind — must return 1 result
+	resp, err := svc.ListTools(t.Context(), &nfv1.ListToolsRequest{ArtifactKind: "tool"})
+	if err != nil {
+		t.Fatalf("ListTools kind=tool: %v", err)
+	}
+	if len(resp.Tools) != 1 {
+		t.Errorf("expected 1 tool, got %d", len(resp.Tools))
+	}
+
+	// Filter for "data" kind — must return 0 results
+	dataResp, err := svc.ListTools(t.Context(), &nfv1.ListToolsRequest{ArtifactKind: "data"})
+	if err != nil {
+		t.Fatalf("ListTools kind=data: %v", err)
+	}
+	if len(dataResp.Tools) != 0 {
+		t.Errorf("expected 0 data tools, got %d", len(dataResp.Tools))
+	}
+}
+
+// TestGetTool_NotFound verifies GetTool returns NotFound for unknown casHash.
+func TestGetTool_NotFound(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	_, err := svc.GetTool(t.Context(), &nfv1.GetToolRequest{CasHash: "nonexistent"})
+	if err == nil {
+		t.Fatal("expected error for nonexistent casHash")
+	}
+}
+
+// TestRegisterTool_IndexDualWrite verifies that RegisterTool appends an entry to the index.
+func TestRegisterTool_IndexDualWrite(t *testing.T) {
+	cat := newTestCatalog(t)
+	store, err := index.NewAt(t.TempDir())
+	if err != nil {
+		t.Fatalf("index.NewAt: %v", err)
+	}
+	svc := catalog.NewToolRegistryService(cat, store)
+
+	resp, err := svc.RegisterTool(t.Context(), &nfv1.RegisterToolRequest{
+		ToolName: "hisat2",
+		Version:  "2.2.1",
+		Digest:   "sha256:abc",
+	})
+	if err != nil {
+		t.Fatalf("RegisterTool: %v", err)
+	}
+
+	// Index entry must exist with matching casHash.
+	entry, indexErr := store.GetByCasHash(resp.CasHash)
+	if indexErr != nil {
+		t.Fatalf("index.GetByCasHash: %v", indexErr)
+	}
+	if entry.CasHash != resp.CasHash {
+		t.Errorf("index entry CasHash: got %q want %q", entry.CasHash, resp.CasHash)
+	}
+	if entry.StableRef != "hisat2@2.2.1" {
+		t.Errorf("index entry StableRef: got %q want hisat2@2.2.1", entry.StableRef)
+	}
+	if entry.LifecyclePhase != index.PhaseActive {
+		t.Errorf("index entry LifecyclePhase: got %q want Active", entry.LifecyclePhase)
+	}
+	if entry.IntegrityHealth != index.HealthHealthy {
+		t.Errorf("index entry IntegrityHealth: got %q want Healthy", entry.IntegrityHealth)
 	}
 }

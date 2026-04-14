@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/HeaInSeo/NodeForge/pkg/index"
 	nfv1 "github.com/HeaInSeo/api-protos/gen/go/nodeforge/v1"
 )
 
@@ -89,6 +91,22 @@ func (c *Catalog) SaveWithCasHash(tool *nfv1.RegisteredToolDefinition) (string, 
 	return hash, nil
 }
 
+// Load reads a single .tooldefinition file by CAS hash.
+// Returns an error if the file does not exist.
+func (c *Catalog) Load(casHash string) (*nfv1.RegisteredToolDefinition, error) {
+	path := filepath.Join(c.dir, casHash+".tooldefinition")
+	//nolint:gosec // casHash is a hex string derived internally; not from user input directly.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("catalog load %s: %w", casHash, err)
+	}
+	var t nfv1.RegisteredToolDefinition
+	if err := json.Unmarshal(data, &t); err != nil {
+		return nil, fmt.Errorf("catalog parse %s: %w", casHash, err)
+	}
+	return &t, nil
+}
+
 // List reads all *.tooldefinition files and returns the parsed tools.
 func (c *Catalog) List() ([]*nfv1.RegisteredToolDefinition, error) {
 	entries, err := os.ReadDir(c.dir)
@@ -148,17 +166,20 @@ func (c *Catalog) ListByStableRef(stableRef string) ([]*nfv1.RegisteredToolDefin
 }
 
 // ToolRegistryService implements ToolRegistryServiceServer.
+// It dual-writes: full spec to CAS (catalog) and lightweight entry to index.Store.
 type ToolRegistryService struct {
 	nfv1.UnimplementedToolRegistryServiceServer
 	catalog *Catalog
+	store   *index.Store
 }
 
-// NewToolRegistryService creates a ToolRegistryService backed by the given Catalog.
-func NewToolRegistryService(cat *Catalog) *ToolRegistryService {
-	return &ToolRegistryService{catalog: cat}
+// NewToolRegistryService creates a ToolRegistryService backed by the given Catalog and index.Store.
+func NewToolRegistryService(cat *Catalog, store *index.Store) *ToolRegistryService {
+	return &ToolRegistryService{catalog: cat, store: store}
 }
 
-// RegisterTool creates a RegisteredToolDefinition and saves it to the catalog.
+// RegisterTool creates a RegisteredToolDefinition, saves it to the CAS catalog,
+// and appends a lightweight entry to the index.Store.
 func (s *ToolRegistryService) RegisterTool(
 	_ context.Context, req *nfv1.RegisterToolRequest,
 ) (*nfv1.RegisterToolResponse, error) {
@@ -192,43 +213,83 @@ func (s *ToolRegistryService) RegisterTool(
 			LastValidatedAt: time.Now().Unix(),
 		},
 	}
+
 	hash, err := s.catalog.SaveWithCasHash(tool)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "catalog save: %v", err)
 	}
+
+	// Dual-write: append lightweight entry to the index.
+	// index.ErrNotFound means the entry didn't exist yet (expected); duplicate is silently OK.
+	entry := index.Entry{
+		CasHash:         hash,
+		ArtifactKind:    index.KindTool,
+		StableRef:       stableRef,
+		ToolName:        req.ToolName,
+		Version:         req.Version,
+		ImageDigest:     req.Digest,
+		LifecyclePhase:  index.PhaseActive,
+		IntegrityHealth: index.HealthHealthy,
+	}
+	if appendErr := s.store.Append(entry); appendErr != nil {
+		// Duplicate is not a fatal error — the CAS file is the source of truth until
+		// the full index transition (TODO-09b). Log and continue.
+		fmt.Fprintf(os.Stderr, "catalog: index append %s: %v\n", hash, appendErr)
+	}
+
 	return &nfv1.RegisterToolResponse{CasHash: hash, Tool: tool}, nil
 }
 
-// ListTools returns registered tools, optionally filtered by stable_ref.
+// ListTools returns registered tools, filtered by stable_ref and/or artifact_kind.
+// Catalog 노출 규칙: index.ListActive() 기준 (lifecycle_phase = Active only).
 func (s *ToolRegistryService) ListTools(
 	_ context.Context, req *nfv1.ListToolsRequest,
 ) (*nfv1.ListToolsResponse, error) {
+	var indexEntries []index.Entry
+	var err error
+
 	if req.GetStableRef() != "" {
-		tools, err := s.catalog.ListByStableRef(req.GetStableRef())
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "catalog list by stable_ref: %v", err)
-		}
-		return &nfv1.ListToolsResponse{Tools: tools}, nil
+		indexEntries, err = s.store.ListByStableRef(req.GetStableRef())
+	} else {
+		indexEntries, err = s.store.ListActive()
 	}
-	tools, err := s.catalog.List()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "catalog list: %v", err)
+		return nil, status.Errorf(codes.Internal, "index list: %v", err)
+	}
+
+	// artifact_kind filter: empty = all kinds.
+	kind := req.GetArtifactKind()
+
+	tools := make([]*nfv1.RegisteredToolDefinition, 0, len(indexEntries))
+	for _, e := range indexEntries {
+		if kind != "" && string(e.ArtifactKind) != kind {
+			continue
+		}
+		tool, loadErr := s.catalog.Load(e.CasHash)
+		if loadErr != nil {
+			// CAS file missing — log and skip; integrity_health reconcile will catch this.
+			fmt.Fprintf(os.Stderr, "catalog: load %s: %v\n", e.CasHash, loadErr)
+			continue
+		}
+		tools = append(tools, tool)
 	}
 	return &nfv1.ListToolsResponse{Tools: tools}, nil
 }
 
 // GetTool retrieves a single RegisteredToolDefinition by its CAS hash.
+// Uses the index for existence check, then loads the full spec from the CAS catalog.
 func (s *ToolRegistryService) GetTool(
 	_ context.Context, req *nfv1.GetToolRequest,
 ) (*nfv1.RegisteredToolDefinition, error) {
-	tools, err := s.catalog.List()
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "catalog list: %v", err)
-	}
-	for _, t := range tools {
-		if t.CasHash == req.CasHash {
-			return t, nil
+	if _, err := s.store.GetByCasHash(req.CasHash); err != nil {
+		if errors.Is(err, index.ErrNotFound) {
+			return nil, status.Errorf(codes.NotFound, "tool %s not found", req.CasHash)
 		}
+		return nil, status.Errorf(codes.Internal, "index lookup: %v", err)
 	}
-	return nil, status.Errorf(codes.NotFound, "tool %s not found", req.CasHash)
+	tool, err := s.catalog.Load(req.CasHash)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "catalog load: %v", err)
+	}
+	return tool, nil
 }
