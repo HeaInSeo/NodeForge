@@ -293,3 +293,39 @@ func (s *ToolRegistryService) GetTool(
 	}
 	return tool, nil
 }
+
+// RetractTool transitions lifecycle_phase → Retracted.
+// NodeVault only — not callable by reconcile loop.
+// Retracted artifacts are excluded from Catalog listing (lifecycle_phase != Active).
+func (s *ToolRegistryService) RetractTool(
+	_ context.Context, req *nfv1.RetractToolRequest,
+) (*nfv1.RetractToolResponse, error) {
+	if err := s.store.SetLifecyclePhase(req.CasHash, index.PhaseRetracted); err != nil {
+		if errors.Is(err, index.ErrNotFound) {
+			return nil, status.Errorf(codes.NotFound, "tool %s not found", req.CasHash)
+		}
+		return nil, status.Errorf(codes.Internal, "retract: %v", err)
+	}
+	return &nfv1.RetractToolResponse{
+		CasHash:        req.CasHash,
+		LifecyclePhase: string(index.PhaseRetracted),
+	}, nil
+}
+
+// DeleteTool transitions lifecycle_phase → Deleted.
+// Retracted → Deleted is the recommended sequence.
+// NodeVault only.
+func (s *ToolRegistryService) DeleteTool(
+	_ context.Context, req *nfv1.DeleteToolRequest,
+) (*nfv1.DeleteToolResponse, error) {
+	if err := s.store.SetLifecyclePhase(req.CasHash, index.PhaseDeleted); err != nil {
+		if errors.Is(err, index.ErrNotFound) {
+			return nil, status.Errorf(codes.NotFound, "tool %s not found", req.CasHash)
+		}
+		return nil, status.Errorf(codes.Internal, "delete: %v", err)
+	}
+	return &nfv1.DeleteToolResponse{
+		CasHash:        req.CasHash,
+		LifecyclePhase: string(index.PhaseDeleted),
+	}, nil
+}

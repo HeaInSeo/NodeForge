@@ -49,7 +49,8 @@ func newServer(t *testing.T) (*httptest.Server, *catalog.ToolRegistryService) {
 	t.Helper()
 	store, cat := newTestDeps(t)
 	svc := catalog.NewToolRegistryService(cat, store)
-	mux := catalogrest.NewMux(store, cat)
+	dataCat := catalog.NewDataCatalogAt(t.TempDir())
+	mux := catalogrest.NewMux(store, cat, dataCat)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 	return ts, svc

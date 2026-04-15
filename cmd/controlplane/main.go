@@ -55,6 +55,7 @@ func main() {
 	// ── Shared storage ──────────────────────────────────────────────────────
 
 	cat := catalog.NewCatalog()
+	dataCat := catalog.NewDataCatalog()
 	indexStore, indexErr := index.New()
 	if indexErr != nil {
 		slog.Error("failed to open index store", "err", indexErr)
@@ -63,7 +64,7 @@ func main() {
 
 	// ── Catalog REST HTTP server ─────────────────────────────────────────────
 
-	catalogMux := catalogrest.NewMux(indexStore, cat)
+	catalogMux := catalogrest.NewMux(indexStore, cat, dataCat)
 	go func() {
 		slog.Info("Catalog REST server starting", "addr", catalogAddr)
 		//nolint:gosec // catalogAddr is operator-configured and sanitized.
@@ -101,6 +102,10 @@ func main() {
 	// ToolRegistryService — CAS storage + index dual-write (gRPC write path).
 	registrySvc := catalog.NewToolRegistryService(cat, indexStore)
 	nfv1.RegisterToolRegistryServiceServer(srv, registrySvc)
+
+	// DataRegistryService — data artifact registration (gRPC write path).
+	dataRegistrySvc := catalog.NewDataRegistryService(dataCat, indexStore)
+	nfv1.RegisterDataRegistryServiceServer(srv, dataRegistrySvc)
 
 	// BuildService — image build+push → L3 → L4 → registration.
 	buildSvc, err := build.NewService(validateSvc, registrySvc)
