@@ -124,3 +124,42 @@ Before marking a change complete, explicitly check for:
 - CAS file written with wrong hash (content mismatch after read-back)
 - dry-run returns success on schema error due to misparse of API server response
 - K8s watch connection drops mid-Job without reconnect logic
+
+## 12. NodeVault 전환 계획 (진행 중)
+
+전체 전환 계획은 **`docs/NODEVAULT_TRANSITION_PLAN.md`** 참조.
+새 기능 구현 전 반드시 해당 문서의 우선순위와 선행 조건을 확인할 것.
+
+### 새 아키텍처 불변 제약
+
+**artifact 상태 이중 축** (절대 같은 필드에 섞지 않는다)
+
+| 축 | 변경 주체 | 용도 |
+|----|-----------|------|
+| `lifecycle_phase` (Pending/Active/Retracted/Deleted) | NodeVault 명시적 호출 | Catalog 노출 결정 |
+| `integrity_health` (Healthy/Partial/Missing/Unreachable/Orphaned) | reconcile loop | 알람/모니터링 전용 |
+
+- Catalog 노출 조건: `lifecycle_phase = Active`만. `integrity_health`는 노출에 영향 없음.
+- reconcile은 `integrity_health`만 변경. `lifecycle_phase`를 건드리는 reconcile 코드는 즉시 차단.
+
+**index 접근 규칙**
+
+- 모든 index read/write는 `pkg/index`를 경유한다.
+- 다른 패키지(build, validate, oras 등)가 index 저장소에 직접 접근하는 것을 금지.
+- `pkg/catalog` (CAS 저장) → `pkg/index`로 전환 예정. 전환 전까지 CAS는 유지.
+
+**패키지 로드맵**
+
+| 패키지 | 상태 | 역할 |
+|--------|------|------|
+| `pkg/index` | 스텁 존재, 미구현 | index 단일 제어 계층 (TODO-08) |
+| `pkg/oras` | 스텁 존재, 미구현 | OCI referrer push (TODO-07) |
+| `pkg/catalog` | 현재 사용 중 | CAS 저장 — pkg/index 완성 후 대체 예정 |
+
+### 6번 결정 체크리스트 추가 항목
+
+- Does it write to the index without going through `pkg/index`? **Block.**
+- Does it change `lifecycle_phase` from a reconcile loop? **Block.**
+- Does it change `integrity_health` from a lifecycle operation? **Block.**
+- Does it expose Catalog entries based on `integrity_health`? **Block.**
+- Does it start TODO-09b implementation before Cilium + Harbor are stable? **Block.**

@@ -56,7 +56,9 @@ func (c *Client) GetDigest(ctx context.Context, destination string) (string, err
 		if err != nil {
 			return "", fmt.Errorf("registry GET %s: %w", url, err)
 		}
-		defer resp.Body.Close() //nolint:gocritic
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 
 		if d := resp.Header.Get("Docker-Content-Digest"); d != "" {
 			return d, nil

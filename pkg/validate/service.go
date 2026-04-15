@@ -183,7 +183,9 @@ func (s *Service) collectLogs(ctx context.Context, jobName string) string {
 	if err != nil {
 		return ""
 	}
-	defer rc.Close()
+	defer func() {
+		_ = rc.Close()
+	}()
 	var sb strings.Builder
 	buf := make([]byte, 4096)
 	for {

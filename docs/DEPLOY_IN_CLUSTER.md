@@ -78,9 +78,9 @@ kubectl get grpcroute -n nodeforge-system
 
 ---
 
-### 4. Privileged Pod — buildah in-cluster 실행을 위한 필수 설정
+### 4. Privileged Pod — in-cluster 이미지 빌드를 위한 필수 설정
 
-NodeForge Pod는 buildah 라이브러리를 사용해 컨테이너 이미지를 직접 빌드한다.  
+NodeForge Pod는 podbridge5를 통해 컨테이너 이미지를 빌드하고 push한다.  
 Pod 내에서 overlay 파일시스템을 마운트하고 runc를 실행하려면 `privileged: true`가 필요하다.
 
 ```yaml
@@ -90,7 +90,7 @@ securityContext:
   allowPrivilegeEscalation: true
 ```
 
-이 설정이 없으면 buildah의 `imagebuildah.BuildDockerfiles()` 호출이 `operation not permitted` 오류로 실패한다.
+이 설정이 없으면 이미지 빌드 초기화가 `operation not permitted` 오류로 실패한다.
 
 클러스터 보안 정책(PodSecurityAdmission 등)이 `privileged: true`를 차단할 경우:
 - `nodeforge-system` 네임스페이스에 `pod-security.kubernetes.io/enforce: privileged` 레이블 추가  

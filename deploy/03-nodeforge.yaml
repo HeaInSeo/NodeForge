@@ -1,9 +1,9 @@
 ---
 # NodeForge controlplane Deployment
 #
-# buildah가 Pod 내에서 컨테이너 이미지를 빌드하려면 아래 조건이 필요하다:
+# podbridge5 기반 이미지 빌드가 Pod 내에서 동작하려면 아래 조건이 필요하다:
 #   1. securityContext.privileged: true  → overlay 마운트 + runc 실행 권한
-#   2. /var/lib/containers 볼륨          → buildah 이미지 스토리지
+#   2. /var/lib/containers 볼륨          → 컨테이너 이미지 스토리지
 #
 # NODEFORGE_REGISTRY_ADDR: 빌드 결과를 push할 Harbor 레지스트리 주소.
 # HARBOR_USER / HARBOR_PASS: Harbor 인증 정보 (nodeforge-harbor-auth Secret에서 주입).
@@ -28,7 +28,7 @@ spec:
     spec:
       serviceAccountName: nodeforge-controlplane
 
-      # buildah overlay 마운트 + runc 실행을 위해 privileged 필요
+      # overlay 마운트 + runc 실행을 위해 privileged 필요
       securityContext:
         runAsUser: 0
 
@@ -66,8 +66,8 @@ spec:
             allowPrivilegeEscalation: true
 
           volumeMounts:
-            # buildah 이미지 스토리지 — Pod 재시작 간 캐시 유지를 위해 emptyDir 사용
-            - name: buildah-storage
+            # 컨테이너 이미지 스토리지 — Pod 재시작 간 캐시 유지를 위해 emptyDir 사용
+            - name: container-storage
               mountPath: /var/lib/containers
 
           resources:
@@ -91,7 +91,7 @@ spec:
             periodSeconds: 10
 
       volumes:
-        - name: buildah-storage
+        - name: container-storage
           emptyDir: {}
 ---
 # NodeForge gRPC Service (ClusterIP)

@@ -44,7 +44,7 @@ func TestParseDestination_NoColon(t *testing.T) {
 // ─── GetDigest ───────────────────────────────────────────────────────────────
 
 func TestGetDigest_DockerContentDigestHeader(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Docker-Content-Digest", "sha256:headerhash")
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -63,8 +63,8 @@ func TestGetDigest_DockerContentDigestHeader(t *testing.T) {
 }
 
 func TestGetDigest_DigestFromJSONBody(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{"config":{"digest":"sha256:bodyhash"}}`)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintln(w, `{"config":{"digest":"sha256:bodyhash"}}`)
 	}))
 	defer ts.Close()
 
@@ -81,8 +81,8 @@ func TestGetDigest_DigestFromJSONBody(t *testing.T) {
 }
 
 func TestGetDigest_NoDigest_ReturnsError(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{}`)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintln(w, `{}`)
 	}))
 	defer ts.Close()
 
@@ -133,7 +133,7 @@ func TestGetDigest_ContextCancelled(t *testing.T) {
 
 	_, err := c.GetDigest(ctx, host+"/img:v1")
 	if err == nil {
-		t.Fatal("expected error for cancelled context")
+		t.Fatal("expected error for canceled context")
 	}
 }
 

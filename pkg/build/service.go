@@ -1,4 +1,4 @@
-// Package build manages builder orchestration via buildah/podbridge5.
+// Package build manages builder orchestration via podbridge5.
 // BuildService receives BuildRequests, calls podbridge5 to build and push images,
 // streams events back to the caller, and acquires the pushed image digest.
 // After L2 succeeds it drives L3 (dry-run) → L4 (smoke run) → tool registration.
@@ -36,7 +36,7 @@ type Service struct {
 	registry  *catalog.ToolRegistryService
 }
 
-// NewService creates a BuildService backed by buildah/podbridge5.
+// NewService creates a BuildService backed by podbridge5.
 func NewService(validator *validate.Service, registry *catalog.ToolRegistryService) (*Service, error) {
 	builder, err := newPodbridge5Builder()
 	if err != nil {
@@ -45,13 +45,13 @@ func NewService(validator *validate.Service, registry *catalog.ToolRegistryServi
 	return &Service{builder: builder, validator: validator, registry: registry}, nil
 }
 
-// Close releases the underlying buildah storage.
+// Close releases the underlying image build storage.
 func (s *Service) Close() error {
 	return s.builder.Close()
 }
 
 // BuildAndRegister implements BuildServiceServer.
-// Full orchestration: L2 (buildah build+push) → L3 (dry-run) → L4 (smoke run) → registration.
+// Full orchestration: L2 (image build+push) → L3 (dry-run) → L4 (smoke run) → registration.
 func (s *Service) BuildAndRegister(req *nfv1.BuildRequest, stream grpc.ServerStreamingServer[nfv1.BuildEvent]) error {
 	ctx := stream.Context()
 
@@ -65,18 +65,18 @@ func (s *Service) BuildAndRegister(req *nfv1.BuildRequest, stream grpc.ServerStr
 
 	destination := fmt.Sprintf("%s/library/%s:latest", registryAddr(), sanitizeName(req.ToolName))
 
-	// ── L2: buildah build + push ─────────────────────────────────────────────────
+	// ── L2: image build + push ───────────────────────────────────────────────────
 
-	_ = send(nfv1.BuildEventKind_BUILD_EVENT_KIND_JOB_CREATED, "buildah build starting: "+destination)
-	slog.Info("buildah build starting", "destination", destination)
+	_ = send(nfv1.BuildEventKind_BUILD_EVENT_KIND_JOB_CREATED, "image build starting: "+destination)
+	slog.Info("image build starting", "destination", destination)
 
 	_, digest, err := s.builder.Build(ctx, req.DockerfileContent, destination)
 	if err != nil {
 		_ = send(nfv1.BuildEventKind_BUILD_EVENT_KIND_FAILED, err.Error())
-		return fmt.Errorf("buildah build: %w", err)
+		return fmt.Errorf("image build: %w", err)
 	}
 
-	slog.Info("buildah build succeeded", "destination", destination, "digest", digest)
+	slog.Info("image build succeeded", "destination", destination, "digest", digest)
 	_ = send(nfv1.BuildEventKind_BUILD_EVENT_KIND_PUSH_SUCCEEDED, "image pushed to "+destination)
 
 	imageWithDigest := destination + "@" + digest

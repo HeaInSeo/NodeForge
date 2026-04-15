@@ -1,12 +1,14 @@
-.PHONY: fmt lint lint-fix test test-integration test-integration-multipass \
+.PHONY: fmt lint lint-fix lint-config golangci-lint test test-integration test-integration-multipass \
         deploy-multipass undeploy-multipass build push-image vendor \
         proto coverage clean all
 
-GOLANGCI_LINT ?= golangci-lint
+LOCALBIN      ?= $(CURDIR)/bin
+GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
+GOLANGCI_LINT_VERSION ?= v2.11.3
 PROTOC        ?= protoc
 PROTO_OUT     ?= ./gen/go
 
-# ── buildah/podbridge5 빌드 태그 ──────────────────────────────────────────────
+# ── 컨테이너 빌드 관련 태그 ───────────────────────────────────────────────────
 # btrfs-progs-devel, gpgme-devel C 헤더 없이도 빌드 가능하도록
 # containers/storage, containers/image의 선택적 드라이버를 제외한다.
 BUILDTAGS ?= exclude_graphdriver_btrfs containers_image_openpgp exclude_graphdriver_devicemapper
@@ -21,11 +23,45 @@ fmt:
 	go fmt ./...
 
 # ── 린트 ──────────────────────────────────────────────────────────────────────
-lint:
-	$(GOLANGCI_LINT) run --config=.golangci.yml ./...
+golangci-lint:
+	@mkdir -p "$(LOCALBIN)"
+	@test -x "$(GOLANGCI_LINT)" || bash -c '\
+		set -euo pipefail; \
+		curl -fsSL "https://api.github.com/repos/golangci/golangci-lint/releases/tags/$(GOLANGCI_LINT_VERSION)" >/dev/null; \
+		OS="$$(uname | tr A-Z a-z)"; \
+		ARCH="$$(uname -m)"; \
+		case "$$ARCH" in x86_64) ARCH=amd64 ;; aarch64|arm64) ARCH=arm64 ;; *) echo "unsupported arch: $$ARCH"; exit 1 ;; esac; \
+		VER="$(GOLANGCI_LINT_VERSION)"; \
+		VER="$${VER#v}"; \
+		FILE="golangci-lint-$$VER-$$OS-$$ARCH.tar.gz"; \
+		URL="https://github.com/golangci/golangci-lint/releases/download/$(GOLANGCI_LINT_VERSION)/$$FILE"; \
+		SUM_URL="https://github.com/golangci/golangci-lint/releases/download/$(GOLANGCI_LINT_VERSION)/golangci-lint-$$VER-checksums.txt"; \
+		TMP="$$(mktemp -d)"; \
+		curl -fsSL "$$URL" -o "$$TMP/lint.tgz"; \
+		curl -fsSL "$$SUM_URL" -o "$$TMP/checksums.txt"; \
+		EXPECTED="$$(awk -v f="$$FILE" "\$$2==f{print \$$1}" "$$TMP/checksums.txt")"; \
+		if [ -z "$$EXPECTED" ]; then echo "checksum not found for $$FILE"; exit 1; fi; \
+		if command -v sha256sum >/dev/null 2>&1; then \
+			ACTUAL="$$(sha256sum "$$TMP/lint.tgz" | awk "{print \$$1}")"; \
+		elif command -v shasum >/dev/null 2>&1; then \
+			ACTUAL="$$(shasum -a 256 "$$TMP/lint.tgz" | awk "{print \$$1}")"; \
+		else \
+			echo "no sha256 tool found (sha256sum/shasum)"; exit 1; \
+		fi; \
+		if [ "$$EXPECTED" != "$$ACTUAL" ]; then echo "checksum mismatch for $$FILE"; exit 1; fi; \
+		tar -xzf "$$TMP/lint.tgz" -C "$$TMP"; \
+		cp "$$TMP/golangci-lint-$$VER-$$OS-$$ARCH/golangci-lint" "$(GOLANGCI_LINT)"; \
+		chmod +x "$(GOLANGCI_LINT)"; \
+		rm -rf "$$TMP"'
 
-lint-fix:
-	$(GOLANGCI_LINT) run --config=.golangci.yml --fix ./...
+lint: golangci-lint
+	$(GOLANGCI_LINT) run --config=.golangci.yml --build-tags "$(BUILDTAGS)" ./...
+
+lint-fix: golangci-lint
+	$(GOLANGCI_LINT) run --config=.golangci.yml --build-tags "$(BUILDTAGS)" --fix ./...
+
+lint-config: golangci-lint
+	$(GOLANGCI_LINT) config verify --config=.golangci.yml
 
 # ── 단위 테스트 ───────────────────────────────────────────────────────────────
 test:

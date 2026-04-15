@@ -24,9 +24,15 @@ func (f *fakeStream) Send(ev *nfv1.BuildEvent) error {
 	return nil
 }
 func (f *fakeStream) Context() context.Context     { return f.ctx }
-func (f *fakeStream) SetHeader(metadata.MD) error  { return nil }
-func (f *fakeStream) SendHeader(metadata.MD) error { return nil }
-func (f *fakeStream) SetTrailer(metadata.MD)       {}
+func (f *fakeStream) SetHeader(metadata.MD) error {
+	_ = f
+	return nil
+}
+func (f *fakeStream) SendHeader(metadata.MD) error {
+	_ = f
+	return nil
+}
+func (f *fakeStream) SetTrailer(metadata.MD) { _ = f }
 func (f *fakeStream) SendMsg(any) error            { return nil }
 func (f *fakeStream) RecvMsg(any) error            { return nil }
 
@@ -46,11 +52,16 @@ type mockBuilder struct {
 	err     error
 }
 
-func (m *mockBuilder) Build(_ context.Context, _, _ string) (string, string, error) {
+func (m *mockBuilder) Build(
+	_ context.Context, _, _ string,
+) (imageID, digest string, err error) {
 	return m.imageID, m.digest, m.err
 }
 
-func (m *mockBuilder) Close() error { return nil }
+func (m *mockBuilder) Close() error {
+	_ = m
+	return nil
+}
 
 // ─── registryAddr ─────────────────────────────────────────────────────────────
 
@@ -108,11 +119,11 @@ func TestSanitizeName_PreservesAlphanumericAndDash(t *testing.T) {
 
 // ─── BuildAndRegister — mock builder ─────────────────────────────────────────
 
-// TestBuildAndRegister_BuilderError verifies that a buildah error causes
+// TestBuildAndRegister_BuilderError verifies that a build error causes
 // BUILD_EVENT_KIND_FAILED to be emitted and an error to be returned.
 func TestBuildAndRegister_BuilderError(t *testing.T) {
 	svc := &Service{
-		builder: &mockBuilder{err: fmt.Errorf("buildah: exec format error")},
+		builder: &mockBuilder{err: fmt.Errorf("image build backend: exec format error")},
 	}
 	stream := newFakeStream()
 	req := &nfv1.BuildRequest{
@@ -126,7 +137,7 @@ RUN echo hello`,
 	if err == nil {
 		t.Fatal("expected error from BuildAndRegister")
 	}
-	if !strings.Contains(err.Error(), "buildah build") {
+	if !strings.Contains(err.Error(), "image build") {
 		t.Errorf("unexpected error: %v", err)
 	}
 
@@ -143,7 +154,7 @@ RUN echo hello`,
 }
 
 // TestBuildAndRegister_BuilderError_NoSucceededEvent verifies that SUCCEEDED is
-// never emitted when the buildah build fails.
+// never emitted when the image build fails.
 func TestBuildAndRegister_BuilderError_NoSucceededEvent(t *testing.T) {
 	svc := &Service{
 		builder: &mockBuilder{err: fmt.Errorf("layer not found")},
