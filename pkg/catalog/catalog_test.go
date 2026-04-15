@@ -13,9 +13,7 @@ import (
 
 func newTestCatalog(t *testing.T) *catalog.Catalog {
 	t.Helper()
-	dir := t.TempDir()
-	t.Setenv("CATALOG_DIR", dir)
-	return catalog.NewCatalog()
+	return catalog.NewCatalogAt(t.TempDir())
 }
 
 func newTestService(t *testing.T) (*catalog.ToolRegistryService, *catalog.Catalog) {
@@ -407,6 +405,144 @@ func TestGetTool_NotFound(t *testing.T) {
 	_, err := svc.GetTool(t.Context(), &nfv1.GetToolRequest{CasHash: "nonexistent"})
 	if err == nil {
 		t.Fatal("expected error for nonexistent casHash")
+	}
+}
+
+// TestRetractTool_TransitionsPhase verifies lifecycle_phase → Retracted and Catalog exclusion.
+func TestRetractTool_TransitionsPhase(t *testing.T) {
+	cat := newTestCatalog(t)
+	store, err := index.NewAt(t.TempDir())
+	if err != nil {
+		t.Fatalf("index.NewAt: %v", err)
+	}
+	svc := catalog.NewToolRegistryService(cat, store)
+
+	reg, err := svc.RegisterTool(t.Context(), &nfv1.RegisterToolRequest{
+		ToolName: "star",
+		Version:  "2.7.11",
+		Digest:   "sha256:aaa",
+	})
+	if err != nil {
+		t.Fatalf("RegisterTool: %v", err)
+	}
+
+	retResp, err := svc.RetractTool(t.Context(), &nfv1.RetractToolRequest{
+		CasHash: reg.CasHash,
+		Reason:  "security issue",
+	})
+	if err != nil {
+		t.Fatalf("RetractTool: %v", err)
+	}
+	if retResp.LifecyclePhase != "Retracted" {
+		t.Errorf("LifecyclePhase: got %q want Retracted", retResp.LifecyclePhase)
+	}
+
+	// ListActive must not include the retracted tool.
+	listResp, err := svc.ListTools(t.Context(), &nfv1.ListToolsRequest{})
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	for _, tool := range listResp.Tools {
+		if tool.CasHash == reg.CasHash {
+			t.Error("retracted tool must not appear in ListTools (Active filter)")
+		}
+	}
+}
+
+// TestRetractTool_NotFound verifies RetractTool returns NotFound for unknown casHash.
+func TestRetractTool_NotFound(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	_, err := svc.RetractTool(t.Context(), &nfv1.RetractToolRequest{CasHash: "nonexistent"})
+	if err == nil {
+		t.Fatal("expected NotFound error")
+	}
+}
+
+// TestDeleteTool_TransitionsPhase verifies lifecycle_phase → Deleted.
+func TestDeleteTool_TransitionsPhase(t *testing.T) {
+	cat := newTestCatalog(t)
+	store, err := index.NewAt(t.TempDir())
+	if err != nil {
+		t.Fatalf("index.NewAt: %v", err)
+	}
+	svc := catalog.NewToolRegistryService(cat, store)
+
+	reg, err := svc.RegisterTool(t.Context(), &nfv1.RegisterToolRequest{
+		ToolName: "hisat2",
+		Version:  "2.2.1",
+		Digest:   "sha256:bbb",
+	})
+	if err != nil {
+		t.Fatalf("RegisterTool: %v", err)
+	}
+
+	// Retract first (recommended sequence: Active → Retracted → Deleted).
+	if _, err := svc.RetractTool(t.Context(), &nfv1.RetractToolRequest{CasHash: reg.CasHash}); err != nil {
+		t.Fatalf("RetractTool: %v", err)
+	}
+
+	delResp, err := svc.DeleteTool(t.Context(), &nfv1.DeleteToolRequest{
+		CasHash: reg.CasHash,
+		Reason:  "permanent removal",
+	})
+	if err != nil {
+		t.Fatalf("DeleteTool: %v", err)
+	}
+	if delResp.LifecyclePhase != "Deleted" {
+		t.Errorf("LifecyclePhase: got %q want Deleted", delResp.LifecyclePhase)
+	}
+
+	// Deleted tool must not appear in ListTools either.
+	listResp, err := svc.ListTools(t.Context(), &nfv1.ListToolsRequest{})
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	for _, tool := range listResp.Tools {
+		if tool.CasHash == reg.CasHash {
+			t.Error("deleted tool must not appear in ListTools")
+		}
+	}
+}
+
+// TestRetractTool_IntegrityHealthUnchanged verifies Retract does NOT touch integrity_health.
+// The two state axes must remain independent.
+func TestRetractTool_IntegrityHealthUnchanged(t *testing.T) {
+	cat := newTestCatalog(t)
+	store, err := index.NewAt(t.TempDir())
+	if err != nil {
+		t.Fatalf("index.NewAt: %v", err)
+	}
+	svc := catalog.NewToolRegistryService(cat, store)
+
+	reg, err := svc.RegisterTool(t.Context(), &nfv1.RegisterToolRequest{
+		ToolName: "bwa",
+		Version:  "0.7.17",
+		Digest:   "sha256:ccc",
+	})
+	if err != nil {
+		t.Fatalf("RegisterTool: %v", err)
+	}
+
+	// Manually set integrity_health to Partial (simulating reconcile observation).
+	if err := store.SetIntegrityHealth(reg.CasHash, index.HealthPartial); err != nil {
+		t.Fatalf("SetIntegrityHealth: %v", err)
+	}
+
+	// Retract — must NOT change integrity_health.
+	if _, err := svc.RetractTool(t.Context(), &nfv1.RetractToolRequest{CasHash: reg.CasHash}); err != nil {
+		t.Fatalf("RetractTool: %v", err)
+	}
+
+	entry, err := store.GetByCasHash(reg.CasHash)
+	if err != nil {
+		t.Fatalf("GetByCasHash: %v", err)
+	}
+	if entry.LifecyclePhase != index.PhaseRetracted {
+		t.Errorf("LifecyclePhase: got %q want Retracted", entry.LifecyclePhase)
+	}
+	if entry.IntegrityHealth != index.HealthPartial {
+		t.Errorf("IntegrityHealth must remain Partial after Retract, got %q", entry.IntegrityHealth)
 	}
 }
 

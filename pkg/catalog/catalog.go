@@ -29,13 +29,22 @@ type Catalog struct {
 }
 
 // NewCatalog creates a Catalog. CATALOG_DIR env overrides the default directory.
+// NewCatalog creates a Catalog. CATALOG_DIR env overrides the default directory.
 func NewCatalog() *Catalog {
-	dir := os.Getenv("CATALOG_DIR")
+	return NewCatalogAt("")
+}
+
+// NewCatalogAt creates a Catalog rooted at dir.
+// If dir is empty, CATALOG_DIR env or the built-in default is used.
+func NewCatalogAt(dir string) *Catalog {
+	if dir == "" {
+		dir = os.Getenv("CATALOG_DIR")
+	}
 	if dir == "" {
 		dir = defaultCatalogDir
 	}
 	dir = filepath.Clean(dir)
-	//nolint:gosec // CATALOG_DIR is an operator-controlled storage root, intentionally configurable.
+	//nolint:gosec // dir is an operator-controlled storage root, intentionally configurable.
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		fmt.Fprintf(os.Stderr, "catalog: mkdir %s: %v\n", dir, err)
 	}
