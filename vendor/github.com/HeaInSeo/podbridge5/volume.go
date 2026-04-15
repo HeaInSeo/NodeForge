@@ -7,13 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/containers/podman/v5/pkg/bindings/containers"
-	"github.com/containers/podman/v5/pkg/bindings/images"
 	"github.com/containers/podman/v5/pkg/bindings/volumes"
 	"github.com/containers/podman/v5/pkg/domain/entities/types"
 	"github.com/containers/podman/v5/pkg/specgen"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -246,59 +244,17 @@ func WriteFolderToVolume(parentCtx context.Context, volumeName, mountPath, hostD
 	}
 
 	// 1. 임시 컨테이너 spec
-	/*spec, err := NewSpec(
-		WithImageName("docker.io/library/alpine:latest"),
-		WithName("temp-folder-writer"),
-		WithCommand([]string{
-			"sh", "-c",
-			"mkdir -p \"$1\"; exec sleep infinity",
-			"sh", mountPath,
-		}),
-		WithNamedVolume(vcr.Name, mountPath, ""),
-	)*/
-	spec, err := NewSpec(
-		WithImageName("docker.io/library/alpine:latest"),
-		WithName("temp-folder-writer"),
-		WithEnv("MOUNT", mountPath),
-		WithCommand([]string{
-			"sh", "-c",
-			"mkdir -p \"$MOUNT\"; exec tail -f /dev/null",
-		}),
-		WithNamedVolume(vcr.Name, mountPath, ""),
-	)
-
+	spec, err := newVolumeWriterSpec(vcr.Name, mountPath)
 	if err != nil {
 		return fmt.Errorf("WriteFolderToVolume: build container spec: %w", err)
 	}
 
-	// 2. 이미지 확인/풀
-	ok, err := images.Exists(ctx, spec.Image, nil)
+	runtime := podmanVolumeContainerRuntime{}
+	containerID, cleanup, err := startVolumeContainer(ctx, runtime, spec)
 	if err != nil {
-		return fmt.Errorf("WriteFolderToVolume: image exists check: %w", err)
+		return fmt.Errorf("WriteFolderToVolume: %w", err)
 	}
-	if !ok {
-		if _, err := images.Pull(ctx, spec.Image, &images.PullOptions{}); err != nil {
-			return fmt.Errorf("WriteFolderToVolume: image pull: %w", err)
-		}
-	}
-
-	// 3. 컨테이너 생성 & 시작
-	createResp, err := containers.CreateWithSpec(ctx, spec, nil)
-	if err != nil {
-		return fmt.Errorf("WriteFolderToVolume: container create: %w", err)
-	}
-	containerID := createResp.ID
-	defer func() {
-		if stopErr := containers.Stop(ctx, containerID, nil); stopErr != nil {
-			Log.Warnf("stop container %s: %v", containerID, stopErr)
-		}
-		if _, rmErr := containers.Remove(ctx, containerID, nil); rmErr != nil {
-			Log.Warnf("remove container %s: %v", containerID, rmErr)
-		}
-	}()
-	if err := containers.Start(ctx, containerID, nil); err != nil {
-		return fmt.Errorf("WriteFolderToVolume: container start: %w", err)
-	}
+	defer cleanup()
 
 	// 4. tar 스트리밍 (WalkDir)
 	pr, pw := io.Pipe()
@@ -421,45 +377,17 @@ func WriteFolderToVolume(parentCtx context.Context, volumeName, mountPath, hostD
 // ReadDataFromVolume TODO 이거 생각해보자. 필요한지
 func ReadDataFromVolume(ctx context.Context, volumeName, mountPath, fileName string) (string, error) {
 	// 1. Build the container specification.
-	spec, err := NewSpec(
-		WithImageName("docker.io/library/alpine:latest"),
-		WithName("temp-data-reader"),
-		WithCommand([]string{"sh", "-c", "mkdir -p /data && sleep infinity"}),
-		WithNamedVolume(volumeName, mountPath, ""),
-	)
+	spec, err := newVolumeReaderSpec(volumeName, mountPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to build container spec: %w", err)
 	}
 
-	// 2. Check if the image exists; if not, pull it.
-	imageExists, err := images.Exists(ctx, spec.Image, nil)
+	runtime := podmanVolumeContainerRuntime{}
+	containerID, cleanup, err := startVolumeContainer(ctx, runtime, spec)
 	if err != nil {
-		return "", fmt.Errorf("failed to check if image %q exists: %w", spec.Image, err)
-	}
-	if !imageExists {
-		log.Printf("Pulling image %s...", spec.Image)
-		if _, err := images.Pull(ctx, spec.Image, &images.PullOptions{}); err != nil {
-			return "", fmt.Errorf("failed to pull image %q: %w", spec.Image, err)
-		}
-	}
-
-	// 3. Create the temporary container.
-	createResp, err := containers.CreateWithSpec(ctx, spec, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create temporary container: %w", err)
-	}
-	containerID := createResp.ID
-
-	// Ensure container cleanup.
-	defer func() {
-		containers.Stop(ctx, containerID, nil)
-		containers.Remove(ctx, containerID, nil)
-	}()
-
-	// 4. Start the container.
-	if err := containers.Start(ctx, containerID, nil); err != nil {
 		return "", fmt.Errorf("failed to start temporary container: %w", err)
 	}
+	defer cleanup()
 
 	// 5. Build the full file path inside the container.
 	fullPath := mountPath + "/" + fileName

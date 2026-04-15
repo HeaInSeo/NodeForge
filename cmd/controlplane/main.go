@@ -1,11 +1,13 @@
 // Package main is the NodeForge control plane entrypoint.
-// Starts the gRPC server: PolicyService, BuildService, ValidateService, ToolRegistryService.
+// Starts the gRPC server (PolicyService, BuildService, ValidateService, ToolRegistryService)
+// and the read-only Catalog REST HTTP server.
 package main
 
 import (
 	"context"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 
@@ -17,13 +19,17 @@ import (
 
 	"github.com/HeaInSeo/NodeForge/pkg/build"
 	"github.com/HeaInSeo/NodeForge/pkg/catalog"
+	"github.com/HeaInSeo/NodeForge/pkg/catalogrest"
 	"github.com/HeaInSeo/NodeForge/pkg/index"
 	"github.com/HeaInSeo/NodeForge/pkg/ping"
 	"github.com/HeaInSeo/NodeForge/pkg/policy"
 	"github.com/HeaInSeo/NodeForge/pkg/validate"
 )
 
-const defaultAddr = ":50051"
+const (
+	defaultGRPCAddr    = ":50051"
+	defaultCatalogAddr = ":8080"
+)
 
 func main() {
 	// Required before storage/build initialization in podbridge5 rootless mode.
@@ -34,17 +40,45 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	addr := os.Getenv("NODEFORGE_ADDR")
-	if addr == "" {
-		addr = defaultAddr
+	grpcAddr := os.Getenv("NODEFORGE_ADDR")
+	if grpcAddr == "" {
+		grpcAddr = defaultGRPCAddr
 	}
-	addr = sanitizeLogValue(addr)
+	grpcAddr = sanitizeLogValue(grpcAddr)
+
+	catalogAddr := os.Getenv("CATALOG_HTTP_ADDR")
+	if catalogAddr == "" {
+		catalogAddr = defaultCatalogAddr
+	}
+	catalogAddr = sanitizeLogValue(catalogAddr)
+
+	// ── Shared storage ──────────────────────────────────────────────────────
+
+	cat := catalog.NewCatalog()
+	indexStore, indexErr := index.New()
+	if indexErr != nil {
+		slog.Error("failed to open index store", "err", indexErr)
+		os.Exit(1)
+	}
+
+	// ── Catalog REST HTTP server ─────────────────────────────────────────────
+
+	catalogMux := catalogrest.NewMux(indexStore, cat)
+	go func() {
+		slog.Info("Catalog REST server starting", "addr", catalogAddr)
+		//nolint:gosec // catalogAddr is operator-configured and sanitized.
+		if err := http.ListenAndServe(catalogAddr, catalogMux); err != nil {
+			slog.Error("Catalog REST server exited", "err", err)
+		}
+	}()
+
+	// ── gRPC server ──────────────────────────────────────────────────────────
 
 	var lc net.ListenConfig
-	lis, err := lc.Listen(context.Background(), "tcp", addr)
+	lis, err := lc.Listen(context.Background(), "tcp", grpcAddr)
 	if err != nil {
-		//nolint:gosec // addr is normalized to a single-line value before logging.
-		slog.Error("failed to listen", "addr", addr, "err", err)
+		//nolint:gosec // grpcAddr is normalized to a single-line value before logging.
+		slog.Error("failed to listen", "addr", grpcAddr, "err", err)
 		os.Exit(1)
 	}
 
@@ -64,13 +98,7 @@ func main() {
 		nfv1.RegisterValidateServiceServer(srv, validateSvc)
 	}
 
-	// Catalog + ToolRegistryService — RegisteredToolDefinition CAS storage + index.
-	cat := catalog.NewCatalog()
-	indexStore, indexErr := index.New()
-	if indexErr != nil {
-		slog.Error("failed to open index store", "err", indexErr)
-		os.Exit(1)
-	}
+	// ToolRegistryService — CAS storage + index dual-write (gRPC write path).
 	registrySvc := catalog.NewToolRegistryService(cat, indexStore)
 	nfv1.RegisterToolRegistryServiceServer(srv, registrySvc)
 
