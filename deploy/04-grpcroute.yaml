@@ -21,9 +21,9 @@ metadata:
 spec:
   parentRefs:
     # Harbor HTTPRoute와 동일한 Gateway를 공유한다.
-    # 실제 Gateway 이름/네임스페이스는 `kubectl get gateway -A` 로 확인 후 수정.
-    - name: cilium-gateway
-      namespace: nodeforge-system
+    # kubectl get gateway -A → harbor/lab-gateway (cilium, 10.113.24.96)
+    - name: lab-gateway
+      namespace: harbor
   hostnames:
     - "nodeforge.10.113.24.96.nip.io"
   rules:

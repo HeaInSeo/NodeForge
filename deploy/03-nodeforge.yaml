@@ -27,6 +27,8 @@ spec:
         app: nodeforge-controlplane
     spec:
       serviceAccountName: nodeforge-controlplane
+      imagePullSecrets:
+        - name: harbor-pull-secret
 
       # overlay 마운트 + runc 실행을 위해 privileged 필요
       securityContext:
@@ -69,6 +71,10 @@ spec:
             # 컨테이너 이미지 스토리지 — Pod 재시작 간 캐시 유지를 위해 emptyDir 사용
             - name: container-storage
               mountPath: /var/lib/containers
+            # storage.conf 오버라이드 — runroot/graphRoot 명시 (containers/storage root 실행 시 필수)
+            - name: storage-conf
+              mountPath: /etc/containers/storage.conf
+              subPath: storage.conf
 
           resources:
             requests:
@@ -79,13 +85,13 @@ spec:
               memory: 4Gi
 
           livenessProbe:
-            grpc:
+            tcpSocket:
               port: 50051
             initialDelaySeconds: 10
             periodSeconds: 30
 
           readinessProbe:
-            grpc:
+            tcpSocket:
               port: 50051
             initialDelaySeconds: 5
             periodSeconds: 10
@@ -93,6 +99,9 @@ spec:
       volumes:
         - name: container-storage
           emptyDir: {}
+        - name: storage-conf
+          configMap:
+            name: nodeforge-storage-conf
 ---
 # NodeForge gRPC Service (ClusterIP)
 # GRPCRoute가 이 Service를 backendRef로 참조한다.

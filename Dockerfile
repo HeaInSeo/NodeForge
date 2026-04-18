@@ -26,8 +26,11 @@ COPY vendor/ ./vendor/
 COPY api-protos/ ./api-protos/
 COPY . .
 
-# go.work 의 api-protos 경로를 컨테이너 내 상대 경로로 교체
-RUN sed -i 's|/opt/go/src/github.com/HeaInSeo/api-protos/gen/go/nodeforge/v1|./api-protos/gen/go/nodeforge/v1|g' go.work
+# go.work 경로 정비: api-protos → 상대 경로, sori → 빌드 컨텍스트 밖이므로 제거 (미사용)
+RUN sed -i \
+    -e 's|/opt/go/src/github.com/HeaInSeo/api-protos/gen/go/nodeforge/v1|./api-protos/gen/go/nodeforge/v1|g' \
+    -e '/HeaInSeo\/sori/d' \
+    go.work
 
 RUN go build \
     -mod=vendor \
@@ -45,9 +48,9 @@ COPY --from=builder /bin/nodeforge /usr/local/bin/nodeforge
 # 컨테이너 스토리지 디렉토리 (K8s Deployment에서 emptyDir 볼륨으로 마운트)
 VOLUME ["/var/lib/containers"]
 
-# rootless 컨테이너에서 fuse-overlayfs를 사용하도록 storage.conf 설정
+# containers/storage 가 root 실행 시에도 runroot를 찾을 수 있도록 명시
 RUN mkdir -p /etc/containers && \
-    printf '[storage]\ndriver = "overlay"\n[storage.options.overlay]\nmount_program = "/usr/bin/fuse-overlayfs"\n' \
+    printf '[storage]\ndriver = "overlay"\nrunroot = "/run/containers/storage"\ngraphRoot = "/var/lib/containers/storage"\n[storage.options.overlay]\nmount_program = "/usr/bin/fuse-overlayfs"\n' \
     > /etc/containers/storage.conf
 
 EXPOSE 50051
