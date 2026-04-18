@@ -46,6 +46,14 @@ NodeForge (이 프로젝트 — Go gRPC 서버)
 | kubectl | 클러스터 접근 |
 | kind 또는 multipass-k8s-lab | 통합 테스트 클러스터 |
 
+private 모듈 접근이 필요한 환경에서는 아래를 같이 설정한다.
+
+```bash
+export GOPRIVATE=github.com/HeaInSeo/*
+export GONOSUMDB=github.com/HeaInSeo/*
+export GOPROXY=direct
+```
+
 ### 빌드 및 실행
 
 ```bash
@@ -82,8 +90,14 @@ KUBECONFIG=/path/to/kubeconfig \
 ### 단위 테스트
 
 ```bash
+GOPRIVATE=github.com/HeaInSeo/* \
+GONOSUMDB=github.com/HeaInSeo/* \
+GOPROXY=direct \
 make test
 # 또는
+GOPRIVATE=github.com/HeaInSeo/* \
+GONOSUMDB=github.com/HeaInSeo/* \
+GOPROXY=direct \
 go test ./...
 ```
 

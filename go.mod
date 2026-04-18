@@ -16,7 +16,7 @@ require (
 )
 
 require (
-	github.com/HeaInSeo/podbridge5 v0.0.0-00010101000000-000000000000
+	github.com/HeaInSeo/podbridge5 v0.1.0
 	github.com/containers/storage v1.55.0
 )
 
@@ -183,5 +183,3 @@ require (
 	tags.cncf.io/container-device-interface v0.8.0 // indirect
 	tags.cncf.io/container-device-interface/specs-go v0.8.0 // indirect
 )
-
-replace github.com/HeaInSeo/podbridge5 => /opt/go/src/github.com/HeaInSeo/podbridge5

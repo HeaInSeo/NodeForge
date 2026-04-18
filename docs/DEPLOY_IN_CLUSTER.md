@@ -16,12 +16,16 @@
 
 ### 1. 이미지 빌드 전 `make vendor` 필수
 
-`go.mod`의 `replace` 디렉티브가 podbridge5 로컬 경로(`/opt/go/src/github.com/HeaInSeo/podbridge5`)를 가리키기 때문에, Docker 빌드 컨텍스트 내에서는 해당 경로에 접근할 수 없다.  
-`make vendor`(= `go mod vendor`)를 먼저 실행해 모든 의존성을 `vendor/` 디렉토리에 복사한 뒤 이미지를 빌드해야 한다.
+`NodeForge` 는 `podbridge5` 를 private GitHub 모듈로 받는다.  
+따라서 vendor 생성 전에는 private 모듈 접근용 환경 변수를 먼저 잡아야 한다. `make vendor`(= `go mod vendor`)를 먼저 실행해 모든 의존성을 `vendor/` 디렉토리에 복사한 뒤 이미지를 빌드해야 한다.
 
 ```bash
 # seoy 장비에서 실행
 cd /opt/go/src/github.com/HeaInSeo/NodeForge
+
+export GOPRIVATE=github.com/HeaInSeo/*
+export GONOSUMDB=github.com/HeaInSeo/*
+export GOPROXY=direct
 
 make vendor       # go mod vendor → vendor/ 생성
 make push-image   # podman build -mod=vendor + podman push
