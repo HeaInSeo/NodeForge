@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	nfv1 "github.com/HeaInSeo/api-protos/gen/go/nodeforge/v1"
+	nfv1 "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -23,7 +23,7 @@ func (f *fakeStream) Send(ev *nfv1.BuildEvent) error {
 	f.events = append(f.events, ev)
 	return nil
 }
-func (f *fakeStream) Context() context.Context     { return f.ctx }
+func (f *fakeStream) Context() context.Context { return f.ctx }
 func (f *fakeStream) SetHeader(metadata.MD) error {
 	_ = f
 	return nil
@@ -33,8 +33,8 @@ func (f *fakeStream) SendHeader(metadata.MD) error {
 	return nil
 }
 func (f *fakeStream) SetTrailer(metadata.MD) { _ = f }
-func (f *fakeStream) SendMsg(any) error            { return nil }
-func (f *fakeStream) RecvMsg(any) error            { return nil }
+func (f *fakeStream) SendMsg(any) error      { return nil }
+func (f *fakeStream) RecvMsg(any) error      { return nil }
 
 func (f *fakeStream) kindsSent() []nfv1.BuildEventKind {
 	kinds := make([]nfv1.BuildEventKind, 0, len(f.events))

@@ -7,7 +7,6 @@ package podbridge5
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/containers/podman/v5/pkg/bindings"
 	"github.com/containers/storage/pkg/unshare"
 	"github.com/seoyhaein/utils"
@@ -25,23 +24,24 @@ func NewConnection5(ctx context.Context, ipcName string) (context.Context, error
 }
 
 func NewConnectionLinux5(ctx context.Context) (context.Context, error) {
-	socket := defaultLinuxSockDir5()
-	ctx, err := bindings.NewConnection(ctx, socket)
+	target := currentRuntimeConnectionTarget()
+	ctx, err := bindings.NewConnection(ctx, target.URI)
+	if err != nil {
+		return nil, wrapRuntimeConnectionError(target, err)
+	}
 
-	return ctx, err
+	return ctx, nil
 }
 
-func defaultLinuxSockDir5() (socket string) {
-	sockDir := os.Getenv("XDG_RUNTIME_DIR")
-	if sockDir == "" {
-		if unshare.IsRootless() {
-			// Non-root user
-			sockDir = fmt.Sprintf("/run/user/%d", os.Getuid())
-		} else {
-			// Root user
-			sockDir = "/run"
-		}
-	}
-	socket = "unix:" + sockDir + "/podman/podman.sock"
-	return
+func defaultLinuxSockDir5() string {
+	return currentRuntimeConnectionTarget().URI
+}
+
+func currentRuntimeConnectionTarget() runtimeConnectionTarget {
+	return resolveRuntimeConnectionTarget(
+		os.Getuid(),
+		os.Getenv("CONTAINER_HOST"),
+		os.Getenv("XDG_RUNTIME_DIR"),
+		unshare.IsRootless(),
+	)
 }

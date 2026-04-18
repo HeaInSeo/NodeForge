@@ -13,7 +13,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	nfv1 "github.com/HeaInSeo/api-protos/gen/go/nodeforge/v1"
+	nfv1 "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1"
 
 	"github.com/HeaInSeo/NodeForge/pkg/catalog"
 	"github.com/HeaInSeo/NodeForge/pkg/validate"

@@ -1,7 +1,0 @@
-go 1.25.5
-
-use (
-	.
-	/opt/go/src/github.com/HeaInSeo/api-protos/gen/go/nodeforge/v1
-	/opt/go/src/github.com/HeaInSeo/sori
-)

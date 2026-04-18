@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package ichthys;
+
+option go_package = "github.com/HeaInSeo/NodeForge/protos/volres/ichthys/v1;volresv1";
+
+message VolumeManifest {
+  string volume_ref = 1;
+  string display_name = 2;
+  string description = 3;
+  uint64 total_size = 4;
+  uint64 record_count = 5;
+  int64 mod_time = 6;
+  map<string, string> annotations = 7;
+  VolumeResource root = 8;
+}
+
+message VolumeResource {
+  string basename = 1;
+  string full_path = 2;
+  bool is_directory = 3;
+  uint64 size = 4;
+  repeated VolumeResource children = 5;
+}
+
+message VolumeList {
+  repeated VolumeManifest volumes = 1;
+}

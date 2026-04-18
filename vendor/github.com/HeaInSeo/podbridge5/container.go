@@ -2,14 +2,9 @@ package podbridge5
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/containers/podman/v5/libpod/define"
-	"github.com/containers/podman/v5/pkg/bindings/containers"
-	"github.com/containers/podman/v5/pkg/bindings/images"
 	"github.com/containers/podman/v5/pkg/specgen"
-	"github.com/seoyhaein/utils"
-	"strings"
 )
 
 type ContainerStatus int
@@ -142,85 +137,16 @@ func WithHealthChecker(inCmd, interval string, retries uint, timeout, startPerio
 
 // StartContainer 컨테이너를 만들고 시작함.
 func StartContainer(ctx context.Context, spec *specgen.SpecGenerator) (string, error) {
-	if ctx == nil {
-		return "", errors.New("context is nil")
-	}
-
-	if spec == nil {
-		return "", errors.New("spec is nil")
-	}
-
-	ccr, err := CreateContainer(ctx, spec)
-	if err != nil {
-		return "", fmt.Errorf("create container: %w", err)
-	}
-
-	if err := containers.Start(ctx, ccr.ID, &containers.StartOptions{}); err != nil {
-		return "", fmt.Errorf("start container: %w", err)
-	}
-
-	return ccr.ID, nil
+	return startContainerWithRuntime(ctx, podmanContainerRuntime{}, spec)
 }
 
 // CreateContainer 컨테이너 생성
 func CreateContainer(ctx context.Context, conSpec *specgen.SpecGenerator) (*CreateContainerResult, error) {
-	if err := conSpec.Validate(); err != nil {
-		Log.Errorf("validation failed: %v", err)
-		return nil, fmt.Errorf("validation failed: %w", err)
-	}
-
-	if utils.IsEmptyString(conSpec.Name) || utils.IsEmptyString(conSpec.Image) {
-		Log.Error("Container's name or image's name is not set")
-		return nil, errors.New("container name or image's name is not set")
-	}
-
-	// 컨테이너가 local storage 에 존재하는지 확인
-	containerExists, err := containers.Exists(ctx, conSpec.Name, &containers.ExistsOptions{External: utils.PFalse})
-	if err != nil {
-		Log.Errorf("Failed to check if container exists: %v", err)
-		return nil, fmt.Errorf("failed to check if container exists: %w", err)
-	}
-
-	if containerExists {
-		return handleExistingContainer(ctx, conSpec.Name)
-	}
-
-	// 이미지가 존재하는지 확인
-	imageExists, err := images.Exists(ctx, conSpec.Image, nil)
-	if err != nil {
-		Log.Errorf("Failed to check if image exists: %v", err)
-		return nil, fmt.Errorf("failed to check if image exists: %w", err)
-	}
-
-	if !imageExists {
-		Log.Infof("Pulling %s image...", conSpec.Image)
-		if _, err := images.Pull(ctx, conSpec.Image, &images.PullOptions{}); err != nil {
-			Log.Errorf("Failed to pull image: %v", err)
-			return nil, fmt.Errorf("failed to pull image: %w", err)
-		}
-	}
-
-	Log.Infof("Creating %s container using %s image...", conSpec.Name, conSpec.Image)
-	createResponse, err := containers.CreateWithSpec(ctx, conSpec, &containers.CreateOptions{})
-	if err != nil {
-		Log.Errorf("Failed to create container: %v", err)
-		return nil, fmt.Errorf("failed to create container: %w", err)
-	}
-
-	return &CreateContainerResult{
-		Name:     conSpec.Name,
-		ID:       createResponse.ID,
-		Warnings: createResponse.Warnings,
-		Status:   Created,
-	}, nil
+	return createContainerWithRuntime(ctx, podmanContainerRuntime{}, conSpec)
 }
 
 func InspectContainer(ctx context.Context, containerID string) (*define.InspectContainerData, error) {
-	data, err := containers.Inspect(ctx, containerID, &containers.InspectOptions{Size: utils.PFalse})
-	if err != nil {
-		return nil, fmt.Errorf("inspect container %q: %w", containerID, err)
-	}
-	return data, nil
+	return inspectContainerWithRuntime(ctx, podmanContainerRuntime{}, containerID)
 }
 
 // HealthCheckContainer returns the container's Status string and an exitCode:
@@ -259,36 +185,5 @@ func HealthCheckContainer(ctx context.Context, containerID string) (status strin
 
 // handleExistingContainer 컨테이너가 존재했을 경우 해당 컨테이너의 정보를 리턴함.
 func handleExistingContainer(ctx context.Context, containerName string) (*CreateContainerResult, error) {
-	info, err := containers.Inspect(ctx, containerName, &containers.InspectOptions{Size: utils.PFalse})
-	if err != nil {
-		return nil, fmt.Errorf("failed to inspect container %q: %w", containerName, err)
-	}
-
-	s := info.State
-	var status ContainerStatus
-
-	switch {
-	case s.Running:
-		status = Running
-	case s.Paused:
-		status = Paused
-	case s.Dead:
-		status = Dead
-	case strings.EqualFold(s.Status, "created") || strings.EqualFold(s.Status, "configured"):
-		status = Created
-	case s.ExitCode >= 0:
-		if s.ExitCode == 0 {
-			status = Exited
-		} else {
-			status = ExitedErr
-		}
-	default:
-		status = Created
-	}
-
-	return &CreateContainerResult{
-		Name:   containerName,
-		ID:     info.ID,
-		Status: status,
-	}, nil
+	return handleExistingContainerWithRuntime(ctx, podmanContainerRuntime{}, containerName)
 }

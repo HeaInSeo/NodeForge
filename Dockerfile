@@ -3,7 +3,7 @@
 # CGO_ENABLED=1 + 관련 C 헤더가 필요하다.
 #
 # go.mod의 replace directive(podbridge5)가 로컬 경로를 가리키므로
-# 컨테이너 빌드 전에 반드시 `make vendor` (= go work vendor) 를 실행해야 한다.
+# 컨테이너 빌드 전에 반드시 `make vendor` (= go mod vendor) 를 실행해야 한다.
 # vendor/ 디렉토리가 없으면 빌드가 실패한다.
 FROM quay.io/buildah/stable:v1.37.1 AS builder
 
@@ -18,19 +18,11 @@ ENV CGO_ENABLED=1
 
 WORKDIR /src
 
-# go.mod / go.work 먼저 복사 (vendor와 함께 캐시 활용)
-COPY go.mod go.work go.work.sum ./
+# go.mod 먼저 복사 (vendor와 함께 캐시 활용)
+COPY go.mod ./
 # vendor/ 가 있어야 -mod=vendor 빌드 가능 (`make vendor` 선행 필요)
 COPY vendor/ ./vendor/
-# api-protos gen/go 는 workspace 로컬 참조 — 빌드 컨텍스트에 함께 포함
-COPY api-protos/ ./api-protos/
 COPY . .
-
-# go.work 경로 정비: api-protos → 상대 경로, sori → 빌드 컨텍스트 밖이므로 제거 (미사용)
-RUN sed -i \
-    -e 's|/opt/go/src/github.com/HeaInSeo/api-protos/gen/go/nodeforge/v1|./api-protos/gen/go/nodeforge/v1|g' \
-    -e '/HeaInSeo\/sori/d' \
-    go.work
 
 RUN go build \
     -mod=vendor \

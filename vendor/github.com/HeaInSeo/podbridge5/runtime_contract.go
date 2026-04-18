@@ -2,9 +2,7 @@ package podbridge5
 
 import (
 	"errors"
-	"fmt"
 	"strings"
-	"time"
 
 	"github.com/containers/image/v5/manifest"
 )
@@ -38,12 +36,9 @@ func ParseHealthcheckConfig(inCmd, interval string, retries uint, timeout, start
 
 	hc := manifest.Schema2HealthConfig{Test: cmdArr}
 
-	if interval == "disable" {
-		interval = "0"
-	}
-	intervalDuration, err := time.ParseDuration(interval)
+	intervalDuration, err := parseHealthcheckInterval(interval)
 	if err != nil {
-		return nil, fmt.Errorf("invalid healthcheck-interval: %w", err)
+		return nil, err
 	}
 	hc.Interval = intervalDuration
 
@@ -52,21 +47,15 @@ func ParseHealthcheckConfig(inCmd, interval string, retries uint, timeout, start
 	}
 	hc.Retries = int(retries)
 
-	timeoutDuration, err := time.ParseDuration(timeout)
+	timeoutDuration, err := parseHealthcheckTimeout(timeout)
 	if err != nil {
-		return nil, fmt.Errorf("invalid healthcheck-timeout: %w", err)
-	}
-	if timeoutDuration < time.Second {
-		return nil, errors.New("healthcheck-timeout must be at least 1 second")
+		return nil, err
 	}
 	hc.Timeout = timeoutDuration
 
-	startPeriodDuration, err := time.ParseDuration(startPeriod)
+	startPeriodDuration, err := parseHealthcheckStartPeriod(startPeriod)
 	if err != nil {
-		return nil, fmt.Errorf("invalid healthcheck-start-period: %w", err)
-	}
-	if startPeriodDuration < 0 {
-		return nil, errors.New("healthcheck-start-period must be 0 seconds or greater")
+		return nil, err
 	}
 	hc.StartPeriod = startPeriodDuration
 

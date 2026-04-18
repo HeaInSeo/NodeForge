@@ -7,6 +7,7 @@ GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 GOLANGCI_LINT_VERSION ?= v2.11.3
 PROTOC        ?= protoc
 PROTO_OUT     ?= ./gen/go
+PROTO_SRC     ?= ./protos
 
 # ── 컨테이너 빌드 관련 태그 ───────────────────────────────────────────────────
 # btrfs-progs-devel, gpgme-devel C 헤더 없이도 빌드 가능하도록
@@ -129,7 +130,7 @@ build:
 # go.mod의 replace directive(podbridge5)가 로컬 경로를 가리키므로
 # vendor/ 에 복사해야 Dockerfile 내 빌드가 가능하다.
 vendor:
-	go work vendor
+	go mod vendor
 
 # ── NodeForge 이미지 빌드 + Harbor push ───────────────────────────────────────
 # 사전 조건:
@@ -148,10 +149,10 @@ push-image: vendor
 # ── proto 생성 ────────────────────────────────────────────────────────────────
 proto:
 	@mkdir -p $(PROTO_OUT)
-	$(PROTOC) --proto_path=../api-protos/protos \
+	$(PROTOC) --proto_path=$(PROTO_SRC) \
 	  --go_out=$(PROTO_OUT) --go_opt=paths=source_relative \
 	  --go-grpc_out=$(PROTO_OUT) --go-grpc_opt=paths=source_relative \
-	  $(shell find ../api-protos/protos -name '*.proto')
+	  $(shell find $(PROTO_SRC) -name '*.proto')
 
 # ── 커버리지 ──────────────────────────────────────────────────────────────────
 coverage:

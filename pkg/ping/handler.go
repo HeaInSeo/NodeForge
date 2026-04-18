@@ -6,7 +6,7 @@ import (
 	"context"
 	"os"
 
-	nfv1 "github.com/HeaInSeo/api-protos/gen/go/nodeforge/v1"
+	nfv1 "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1"
 )
 
 // Handler implements nfv1.PingServiceServer.

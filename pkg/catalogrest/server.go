@@ -18,7 +18,7 @@ import (
 
 	"github.com/HeaInSeo/NodeForge/pkg/catalog"
 	"github.com/HeaInSeo/NodeForge/pkg/index"
-	nfv1 "github.com/HeaInSeo/api-protos/gen/go/nodeforge/v1"
+	nfv1 "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1"
 )
 
 // ToolItem is the JSON wire format for a single registered tool.

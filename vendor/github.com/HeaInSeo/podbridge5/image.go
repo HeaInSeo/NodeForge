@@ -1,14 +1,11 @@
 package podbridge5
 
 import (
-	"compress/gzip"
 	"context"
 	"fmt"
 	"github.com/containers/buildah"
 	"github.com/containers/buildah/define"
-	"github.com/containers/buildah/imagebuildah"
 	"github.com/containers/common/pkg/config"
-	"github.com/containers/image/v5/transports/alltransports"
 	imageTypes "github.com/containers/image/v5/types"
 	"github.com/containers/podman/v5/pkg/bindings/images"
 	"github.com/containers/podman/v5/pkg/domain/entities/types"
@@ -17,8 +14,6 @@ import (
 	"github.com/opencontainers/go-digest"
 	"github.com/seoyhaein/utils"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -336,115 +331,34 @@ func buildImageFromDockerfile(ctx context.Context, dockerfilePath string) (strin
 //   - digestStr: sha256 digest of the built image manifest (empty string if unavailable)
 //   - err: any build error
 func BuildDockerfileContent(ctx context.Context, store storage.Store, dockerfileContent, outputRef string) (imageID, digestStr string, err error) {
-	if ctx == nil {
-		return "", "", fmt.Errorf("ctx must not be nil")
-	}
 	if store == nil {
 		return "", "", fmt.Errorf("store must not be nil")
 	}
-	if strings.TrimSpace(dockerfileContent) == "" {
-		return "", "", fmt.Errorf("dockerfileContent must not be empty")
-	}
-
-	// Write Dockerfile content to a temp file so imagebuildah can read it.
-	tmpFile, ferr := os.CreateTemp("", "nodeforge-dockerfile-*")
-	if ferr != nil {
-		return "", "", fmt.Errorf("failed to create temp Dockerfile: %w", ferr)
-	}
-	defer func() {
-		_ = os.Remove(tmpFile.Name())
-	}()
-
-	if _, werr := tmpFile.WriteString(dockerfileContent); werr != nil {
-		_ = tmpFile.Close()
-		return "", "", fmt.Errorf("failed to write Dockerfile content: %w", werr)
-	}
-	if cerr := tmpFile.Close(); cerr != nil {
-		return "", "", fmt.Errorf("failed to close temp Dockerfile: %w", cerr)
-	}
-
-	buildOpts := DefaultImageBuildOptions(outputRef)
-
-	id, ref, berr := imagebuildah.BuildDockerfiles(ctx, store, buildOpts, tmpFile.Name())
-	if berr != nil {
-		return "", "", fmt.Errorf("imagebuildah.BuildDockerfiles: %w", berr)
-	}
-
-	if ref != nil {
-		digestStr = ref.Digest().String()
-	}
-	return id, digestStr, nil
+	return buildDockerfileContentWithRuntime(ctx, realImageBuildRuntime{}, store, dockerfileContent, outputRef)
 }
 
 // PushImage pushes a locally built image from the provided storage store to the
 // destination registry reference and returns the pushed manifest digest.
 func PushImage(ctx context.Context, store storage.Store, imageRef, destination string) (string, error) {
-	if ctx == nil {
-		return "", fmt.Errorf("ctx must not be nil")
-	}
 	if store == nil {
 		return "", fmt.Errorf("store must not be nil")
 	}
-	if strings.TrimSpace(imageRef) == "" {
-		return "", fmt.Errorf("imageRef must not be empty")
-	}
-	if strings.TrimSpace(destination) == "" {
-		return "", fmt.Errorf("destination must not be empty")
-	}
-
-	normalizedDestination, err := NormalizePushDestination(destination)
-	if err != nil {
-		return "", err
-	}
-
-	destRef, err := alltransports.ParseImageName(normalizedDestination)
-	if err != nil {
-		return "", fmt.Errorf("parse destination %q: %w", normalizedDestination, err)
-	}
-
-	_, manifestDigest, err := buildah.Push(ctx, imageRef, destRef, buildah.PushOptions{
-		Store: store,
-		SystemContext: &imageTypes.SystemContext{
-			DockerInsecureSkipTLSVerify: imageTypes.OptionalBoolTrue,
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("push image %q to %q: %w", imageRef, destination, err)
-	}
-
-	return manifestDigest.String(), nil
+	return pushImageWithRuntime(ctx, realImageBuildRuntime{}, store, imageRef, destination)
 }
 
 // BuildAndPushDockerfileContent builds an image from Dockerfile content and
 // pushes it to the destination registry reference.
 func BuildAndPushDockerfileContent(ctx context.Context, store storage.Store, dockerfileContent, outputRef string) (imageID, digestStr string, err error) {
-	imageID, _, err = BuildDockerfileContent(ctx, store, dockerfileContent, outputRef)
-	if err != nil {
-		return "", "", err
+	if store == nil {
+		return "", "", fmt.Errorf("store must not be nil")
 	}
-
-	digestStr, err = PushImage(ctx, store, outputRef, outputRef)
-	if err != nil {
-		return "", "", err
-	}
-
-	return imageID, digestStr, nil
+	return buildAndPushDockerfileContentWithRuntime(ctx, realImageBuildRuntime{}, store, dockerfileContent, outputRef)
 }
 
 // newBuilder creates a new builder using the NewBuilder function with default options.
 // TODO 좀더 study 필요. 옵션들에 대해서.
 func newBuilder(ctx context.Context, store storage.Store, idName string) (*buildah.Builder, error) {
-	caps, err := capabilities()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get capabilities: %w", err)
-	}
-
-	builderOpts, err := newBuilderOptions(idName, caps)
-	if err != nil {
-		return nil, err
-	}
-
-	return buildah.NewBuilder(ctx, store, *builderOpts)
+	return newBuilderWithRuntime(ctx, realImageBuilderFactoryRuntime{}, store, idName)
 }
 
 // newAddAndCopyOptions creates default add and copy options.
@@ -458,109 +372,28 @@ func newAddAndCopyOptions() buildah.AddAndCopyOptions {
 
 // createDirectories creates directories inside the builder.
 func createDirectories(builder *buildah.Builder, dirs []string) error {
-	for _, dir := range dirs {
-		err := builder.Run([]string{"mkdir", "-p", dir}, defaultRunOptions)
-		if err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", dir, err)
-		}
-	}
-	return nil
+	return createDirectoriesWithRuntime(builder, dirs)
 }
 
 // setFilePermissions sets file permissions using chmod.
 func setFilePermissions(builder *buildah.Builder, files []string) error {
-	chmodArgs := append([]string{"chmod", "777"}, files...)
-	err := builder.Run(chmodArgs, defaultRunOptions)
-	if err != nil {
-		return fmt.Errorf("failed to set file permissions: %w", err)
-	}
-	return nil
+	return setFilePermissionsWithRuntime(builder, files)
 }
 
 // TODO 생각하기 이게 필요할지 고민해야함. install.sh 까지도.
 // installDependencies runs the install.sh script.
 func installDependencies(builder *buildah.Builder) error {
-	chmodArgs := []string{"/app/install.sh"}
-	err := builder.Run(chmodArgs, defaultRunOptions)
-	if err != nil {
-		return fmt.Errorf("failed to run install.sh: %w", err)
-	}
-	return nil
+	return installDependenciesWithRuntime(builder)
 }
 
 // copyScripts copies scripts to the specified destination directories.
 func copyScripts(builder *buildah.Builder, scripts map[string][]string) error {
-	options := newAddAndCopyOptions()
-	for dest, srcList := range scripts {
-		for _, src := range srcList {
-			err := builder.Add(dest, false, options, src)
-			if err != nil {
-				return fmt.Errorf("failed to copy script %s to %s: %w", src, dest, err)
-			}
-		}
-	}
-	return nil
+	return copyScriptsWithRuntime(builder, newAddAndCopyOptions(), scripts)
 }
 
 // saveImage saves the built image to an archive file. TODO 파일 읽는 부분 살펴봐야 함. outputFile, err := os.OpenFile(archivePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 func saveImage(ctx context.Context, path, imageName, imageId string, compress bool) error {
-	// imageName 이미 태그를 포함한 완전한 이름이어야 함
-	// 예: "docker.io/library/alpine-internal:latest"
-
-	// 압축 여부에 따른 파일 확장자 설정
-	extension := ".tar"
-	if compress {
-		extension = ".tar.gz"
-	}
-
-	// imageName 에서 마지막 구성 요소를 추출
-	// 예: "docker.io/library/alpine-internal:latest" -> "alpine-internal:latest"
-	baseImage := filepath.Base(imageName)
-	// 파일명에 콜론(:)은 문제가 될 수 있으므로 하이픈(-)으로 치환
-	safeImageName := strings.ReplaceAll(baseImage, ":", "-")
-	// 파일명 생성: safeImageName + 확장자
-	archiveFileName := fmt.Sprintf("%s%s", safeImageName, extension)
-	// 입력받은 path 에 바로 결합 (불필요한 디렉토리 구조가 생성되지 않도록)
-	archivePath := filepath.Join(path, archiveFileName)
-
-	// archive 파일이 위치할 디렉토리 생성
-	dir := filepath.Dir(archivePath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("failed to create directory %s: %w", dir, err)
-	}
-
-	// 출력 파일 생성 (명시적으로 파일 권한 설정)
-	outputFile, err := os.OpenFile(archivePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return fmt.Errorf("failed to create output file %s: %w", archivePath, err)
-	}
-	defer func() {
-		if cErr := outputFile.Close(); cErr != nil {
-			Log.Warnf("Failed to close output file: %v", cErr)
-		}
-	}()
-
-	var writer io.Writer = outputFile
-
-	if compress {
-		// gzip.Writer 사용하여 데이터를 압축
-		gzipWriter := gzip.NewWriter(outputFile)
-		defer func() {
-			if zCerr := gzipWriter.Close(); zCerr != nil {
-				Log.Errorf("Failed to close gzip writer: %v", zCerr)
-			}
-		}()
-		writer = gzipWriter
-	}
-	// layer 를 별도로 압축을 할 수 있음.
-	exportOptions := &images.ExportOptions{
-		// 필요한 경우 추가 옵션을 설정
-	}
-
-	if err := images.Export(ctx, []string{imageId}, writer, exportOptions); err != nil {
-		return fmt.Errorf("failed to export image %s: %w", imageId, err)
-	}
-	return nil
+	return saveImageWithRuntime(ctx, realImageExportRuntime{}, path, imageName, imageId, compress)
 }
 
 // internalizeImageName 은 입력 이미지 이름에서 태그 앞에 "-internal"을 삽입하여 내부 전용 이미지 이름을 생성

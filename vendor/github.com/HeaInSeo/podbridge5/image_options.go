@@ -49,11 +49,15 @@ func newBuilderOptions(baseImage string, caps []string) (*buildah.BuilderOptions
 }
 
 func newDefaultAddAndCopyOptions(hasher io.Writer) buildah.AddAndCopyOptions {
+	return newDefaultAddAndCopyOptionsWithDryRun(hasher, DefaultAddAndCopyDryRun)
+}
+
+func newDefaultAddAndCopyOptionsWithDryRun(hasher io.Writer, dryRun bool) buildah.AddAndCopyOptions {
 	return NewAddAndCopyOptions(
 		WithChmod("0o755"),
 		WithChown("0:0"),
 		WithHasher(hasher),
 		WithContextDir("."),
-		WithDryRun(false),
+		WithDryRun(dryRun),
 	)
 }

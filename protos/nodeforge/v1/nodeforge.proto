@@ -1,0 +1,301 @@
+syntax = "proto3";
+
+package nodeforge.v1;
+
+option go_package = "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1;nodeforgesv1";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 공통 스펙 메시지 (RegisteredTool v0.2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+message PortSpec {
+  string name = 1;
+  string role = 2;
+  string format = 3;
+  string shape = 4;
+  bool required = 5;
+  string class = 6;
+  map<string, string> constraints = 7;
+}
+
+message DisplaySpec {
+  string label = 1;
+  string description = 2;
+  string category = 3;
+  repeated string tags = 4;
+}
+
+message ValidationStatus {
+  string phase = 1;
+  int64 last_validated_at = 2;
+  repeated string failures = 3;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PolicyService — DockGuard 정책 번들 관리
+// ─────────────────────────────────────────────────────────────────────────────
+
+service PolicyService {
+  rpc GetPolicyBundle(GetPolicyBundleRequest) returns (PolicyBundle);
+  rpc ListPolicies(ListPoliciesRequest) returns (ListPoliciesResponse);
+}
+
+message GetPolicyBundleRequest {}
+
+message PolicyBundle {
+  bytes wasm_bytes = 1;
+  string version = 2;
+  int64 built_at = 3;
+}
+
+message ListPoliciesRequest {}
+
+message PolicyInfo {
+  string rule_id = 1;
+  string name = 2;
+  string version = 3;
+  string description = 4;
+}
+
+message ListPoliciesResponse {
+  repeated PolicyInfo policies = 1;
+  string bundle_version = 2;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BuildService — builder Job orchestration
+// ─────────────────────────────────────────────────────────────────────────────
+
+service BuildService {
+  rpc BuildAndRegister(BuildRequest) returns (stream BuildEvent);
+}
+
+message BuildRequest {
+  string request_id = 1;
+  string tool_definition_id = 2;
+  string tool_name = 3;
+  string image_uri = 4;
+  string dockerfile_content = 5;
+  string script = 6;
+  string environment_spec = 9;
+  string version = 10;
+  repeated PortSpec inputs = 12;
+  repeated PortSpec outputs = 13;
+  DisplaySpec display = 14;
+  string command = 15;
+
+  reserved 7, 8;
+  reserved "input_names", "output_names";
+}
+
+enum BuildEventKind {
+  BUILD_EVENT_KIND_UNSPECIFIED = 0;
+  BUILD_EVENT_KIND_LOG = 1;
+  BUILD_EVENT_KIND_JOB_CREATED = 2;
+  BUILD_EVENT_KIND_JOB_RUNNING = 3;
+  BUILD_EVENT_KIND_PUSH_SUCCEEDED = 4;
+  BUILD_EVENT_KIND_DIGEST_ACQUIRED = 5;
+  BUILD_EVENT_KIND_SUCCEEDED = 6;
+  BUILD_EVENT_KIND_FAILED = 7;
+}
+
+message BuildEvent {
+  BuildEventKind kind = 1;
+  string message = 2;
+  int64 timestamp = 3;
+  string digest = 4;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ValidateService — L3 dry-run + L4 smoke run
+// ─────────────────────────────────────────────────────────────────────────────
+
+service ValidateService {
+  rpc DryRun(DryRunRequest) returns (DryRunResult);
+  rpc SmokeRun(SmokeRunRequest) returns (SmokeRunResult);
+}
+
+message DryRunRequest {
+  string request_id = 1;
+  string manifest_yaml = 2;
+}
+
+message DryRunResult {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message SmokeRunRequest {
+  string request_id = 1;
+  string manifest_yaml = 2;
+}
+
+message SmokeRunResult {
+  bool success = 1;
+  int32 exit_code = 2;
+  string log_output = 3;
+  string error_message = 4;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ToolRegistryService — RegisteredToolDefinition 관리
+// ─────────────────────────────────────────────────────────────────────────────
+
+service ToolRegistryService {
+  rpc RegisterTool(RegisterToolRequest) returns (RegisterToolResponse);
+  rpc GetTool(GetToolRequest) returns (RegisteredToolDefinition);
+  rpc ListTools(ListToolsRequest) returns (ListToolsResponse);
+  rpc RetractTool(RetractToolRequest) returns (RetractToolResponse);
+  rpc DeleteTool(DeleteToolRequest) returns (DeleteToolResponse);
+}
+
+message RegisterToolRequest {
+  string request_id = 1;
+  string tool_definition_id = 2;
+  string tool_name = 3;
+  string image_uri = 4;
+  string digest = 5;
+  string environment_spec = 8;
+  string version = 9;
+  string stable_ref = 10;
+  repeated PortSpec inputs = 11;
+  repeated PortSpec outputs = 12;
+  DisplaySpec display = 13;
+  string command = 14;
+
+  reserved 6, 7;
+  reserved "input_names", "output_names";
+}
+
+message RegisterToolResponse {
+  string cas_hash = 1;
+  RegisteredToolDefinition tool = 2;
+}
+
+message GetToolRequest {
+  string cas_hash = 1;
+}
+
+message ListToolsRequest {
+  string stable_ref = 1;
+  string artifact_kind = 2;
+}
+
+message ListToolsResponse {
+  repeated RegisteredToolDefinition tools = 1;
+}
+
+message RegisteredToolDefinition {
+  string cas_hash = 1;
+  string tool_definition_id = 2;
+  string tool_name = 3;
+  string image_uri = 4;
+  string digest = 5;
+  int64 registered_at = 8;
+  string environment_spec = 9;
+  string version = 10;
+  string stable_ref = 11;
+  repeated PortSpec inputs = 12;
+  repeated PortSpec outputs = 13;
+  DisplaySpec display = 14;
+  string lifecycle_phase = 15;
+  ValidationStatus validation = 16;
+  string command = 17;
+  string integrity_health = 18;
+
+  reserved 6, 7;
+  reserved "input_names", "output_names";
+}
+
+message RetractToolRequest {
+  string cas_hash = 1;
+  string reason = 2;
+}
+
+message RetractToolResponse {
+  string cas_hash = 1;
+  string lifecycle_phase = 2;
+}
+
+message DeleteToolRequest {
+  string cas_hash = 1;
+  string reason = 2;
+}
+
+message DeleteToolResponse {
+  string cas_hash = 1;
+  string lifecycle_phase = 2;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DataRegistryService — 참조 데이터(reference data) artifact 관리
+// ─────────────────────────────────────────────────────────────────────────────
+
+service DataRegistryService {
+  rpc RegisterData(DataRegisterRequest) returns (DataRegisterResponse);
+  rpc GetData(GetDataRequest) returns (RegisteredDataDefinition);
+  rpc ListData(ListDataRequest) returns (ListDataResponse);
+}
+
+message DataRegisterRequest {
+  string request_id = 1;
+  string data_name = 2;
+  string version = 3;
+  string description = 4;
+  string format = 5;
+  string source_uri = 6;
+  string checksum = 7;
+  string storage_uri = 8;
+  string stable_ref = 9;
+  DisplaySpec display = 10;
+}
+
+message DataRegisterResponse {
+  string cas_hash = 1;
+  RegisteredDataDefinition data = 2;
+}
+
+message GetDataRequest {
+  string cas_hash = 1;
+}
+
+message ListDataRequest {
+  string stable_ref = 1;
+}
+
+message ListDataResponse {
+  repeated RegisteredDataDefinition data = 1;
+}
+
+message RegisteredDataDefinition {
+  string cas_hash = 1;
+  string data_name = 2;
+  string version = 3;
+  string description = 4;
+  string format = 5;
+  string source_uri = 6;
+  string checksum = 7;
+  string storage_uri = 8;
+  string stable_ref = 9;
+  DisplaySpec display = 10;
+  int64 registered_at = 11;
+  string lifecycle_phase = 12;
+  string integrity_health = 13;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PingService — Phase 0 연결 확인용 (ping/pong)
+// ─────────────────────────────────────────────────────────────────────────────
+
+service PingService {
+  rpc Ping(PingRequest) returns (PingResponse);
+}
+
+message PingRequest {
+  string message = 1;
+}
+
+message PingResponse {
+  string message = 1;
+  string server_id = 2;
+}

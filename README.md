@@ -32,7 +32,7 @@ NodeForge (이 프로젝트 — Go gRPC 서버)
 | `ValidateService` | `pkg/validate` | L3 dry-run / L4 smoke run (BuildService 내부 호출) |
 | `ToolRegistryService` | `pkg/catalog` | `RegisteredToolDefinition` 조회 (`ListTools`, `GetTool`) |
 
-프로토 정의: [`github.com/HeaInSeo/api-protos`](https://github.com/HeaInSeo/api-protos)
+프로토 정의: [`protos/nodeforge/v1`](protos/nodeforge/v1/nodeforge.proto)
 
 ---
 
@@ -186,5 +186,5 @@ cp /policy.wasm /path/to/NodeForge/assets/policy/dockguard.wasm
 |----------|------|
 | [`NodeKit`](https://github.com/HeaInSeo/NodeKit) | C# 어드민 UI — ToolDefinition 편집, L1 정책 평가, BuildRequest 전송 |
 | [`DockGuard`](https://github.com/HeaInSeo/DockGuard) | OPA/Rego Dockerfile 정책 + wasm 번들 빌드 |
-| [`api-protos`](https://github.com/HeaInSeo/api-protos) | gRPC 프로토 정의 |
+| `protos/` | NodeForge canonical gRPC 프로토 정의 |
 | [`multipass-k8s-lab`](https://github.com/HeaInSeo/multipass-k8s-lab) | VM 기반 K8s 테스트 클러스터 |

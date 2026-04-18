@@ -1,197 +1,55 @@
 # podbridge5
 
-English follows the Korean section.
-
-## 개요
-
-`podbridge5`는 컨테이너 런타임, 이미지 빌드, 이미지 push 흐름을 다루는 Go 라이브러리입니다.
-이 저장소는 Kubernetes 오케스트레이션 계층 아래에 있으므로, `NodeForge` 같은 상위 프로젝트와는 다른 방식으로 검증하는 편이 맞습니다.
-
-## 검증 방향
-
-검증은 두 경로로 나눕니다.
-
-### 1. 기본 개발 경로
-
-현재 호스트에서 빠르게 확인하는 경로입니다.
-
-- `make test`
-- `make test-runtime`
-- `make test-runtime-integration`
-- `make runtime-env-check`
-
-이 경로는 코드 수정, 경량 검증, 로컬 정리에 적합합니다. 다만 `buildah`, `containers/storage`, `containers/image` 의존성 때문에 호스트 패키지가 없으면 전체 테스트가 바로 되지 않을 수 있습니다.
-
-### 2. 원격 런타임 VM 경로
-
-실제 런타임 의존성 검증은 `100.123.80.48` 장비의 Multipass에서 ephemeral VM을 만들어 수행합니다.
-
-- 목적 장비: `100.123.80.48`
-- 사용자: `seoy`
-- VM 이름 기본값: `podbridge5-dev`
-- 권장 OS: Ubuntu 24.04
-- 검증 대상:
-  - `buildah`
-  - `fuse-overlayfs`
-  - `pkg-config` / `gpgme`
-  - `btrfs` headers
-  - system `podman` socket
-  - storage 초기화
-  - 이미지 build / push 흐름
-
-이 경로는 `multipass-k8s-lab` 클러스터와 분리합니다.
-
-- `multipass-k8s-lab`: `NodeForge` Kubernetes end-to-end 검증
-- `podbridge5-dev`: `podbridge5` 런타임 검증
-
-## 원격 VM 자동화
-
-원격 VM 테스트는 Makefile이 자동으로 처리합니다.
-
-`make vm-test-runtime` 실행 순서:
-
-1. 원격 장비에서 테스트용 VM 생성
-2. 필요한 패키지와 system `podman` socket 준비
-3. 현재 로컬 `podbridge5` 워크트리를 tar.gz로 묶어 원격 호스트로 업로드
-4. 원격 호스트에서 `multipass transfer`로 fresh VM에 동기화
-5. VM 안에서 `go test ./...` 실행
-6. 테스트 종료 후 VM 삭제
-
-`make vm-test-runtime-integration`도 같은 흐름으로 동작하며, integration 태그 테스트를 수행합니다.
-
-중요한 점은 이 경로가 항상 **clean VM 기준 재현성**을 목표로 한다는 것입니다.
-환경 찌꺼기 때문에 생기는 문제라면 VM을 새로 만들고 다시 돌렸을 때 사라져야 합니다.
-반대로 fresh VM에서도 계속 재현되면, 그 문제는 호스트 찌꺼기가 아니라 코드나 런타임 초기화 경로에 있을 가능성이 큽니다.
-
-## 로그 수집
-
-원격 VM 테스트 출력은 콘솔에 표시되는 동시에 로컬 로그 파일로 저장됩니다.
-
-- `artifacts/vm-test-runtime.log`
-- `artifacts/vm-test-runtime-integration.log`
-
-로그에는 VM lifecycle, 원격 준비 단계, worktree sync, `go test` stdout/stderr가 함께 들어갑니다.
-
-## 사용 방법
-
-필수 환경 변수:
-
-- `REMOTE_PASS`: 원격 장비 SSH 비밀번호
-
-자주 쓰는 타깃:
-
-- `make vm-test-runtime REMOTE_PASS=...`
-- `make vm-test-runtime-integration REMOTE_PASS=...`
-- `make vm-create-runtime REMOTE_PASS=...`
-- `make vm-prepare-runtime REMOTE_PASS=...`
-- `make vm-sync-runtime REMOTE_PASS=...`
-- `make vm-delete-runtime REMOTE_PASS=...`
-
-기본값으로 현재 로컬 워크트리(`$(CURDIR)`)가 VM에 동기화됩니다.
-필요하면 `PODBRIDGE5_LOCAL_REPO=/path/to/repo`로 명시적으로 바꿀 수 있습니다.
-
-## 참고
-
-이 저장소의 런타임 검증은 GitHub Actions를 기준으로 설계하지 않습니다.
-중첩 가상화와 런타임 의존성 때문에, 현재 기준으로는 원격 장비의 Multipass VM을 사용하는 방식이 더 단순하고 안정적입니다.
-
-기존 README 초안은 [backup/Readme.legacy.md](backup/Readme.legacy.md)에 백업해 두었습니다.
-
----
-
-# podbridge5
-
-## Overview
-
-`podbridge5` is a Go library for container runtime behavior, image builds, and image pushes.
-Because it sits below the Kubernetes orchestration layer, it should be validated differently from upper-layer projects such as `NodeForge`.
-
-## Validation Model
-
-Validation is split into two paths.
-
-### 1. Base development path
-
-This is the fast path on the current host.
-
-- `make test`
-- `make test-runtime`
-- `make test-runtime-integration`
-- `make runtime-env-check`
-
-This path is useful for code changes, lightweight checks, and local maintenance. Since the repository still depends directly on `buildah`, `containers/storage`, and `containers/image`, a full test run may still require host packages to be installed.
-
-### 2. Remote runtime VM path
-
-Runtime-dependent validation runs on an ephemeral Multipass VM created on `100.123.80.48`.
-
-- target machine: `100.123.80.48`
-- user: `seoy`
-- default VM name: `podbridge5-dev`
-- recommended OS: Ubuntu 24.04
-- validated components:
-  - `buildah`
-  - `fuse-overlayfs`
-  - `pkg-config` / `gpgme`
-  - `btrfs` headers
-  - system `podman` socket
-  - storage initialization
-  - image build / push flows
-
-This stays separate from the `multipass-k8s-lab` cluster.
-
-- `multipass-k8s-lab`: Kubernetes end-to-end validation for `NodeForge`
-- `podbridge5-dev`: runtime validation for `podbridge5`
-
-## Remote VM Automation
-
-The Makefile handles the remote runtime VM lifecycle automatically.
-
-`make vm-test-runtime` does the following:
-
-1. creates a fresh test VM on the remote machine
-2. installs required packages and prepares the system `podman` socket
-3. archives the current local `podbridge5` worktree and uploads it to the remote host
-4. syncs that archive into the fresh VM with `multipass transfer`
-5. runs `go test ./...` inside the VM
-6. deletes the VM after the test finishes
-
-`make vm-test-runtime-integration` uses the same lifecycle and runs the integration-tag path.
-
-The key property is **clean-VM reproducibility**.
-If a failure only exists because of environment residue, deleting the runtime VM and running again should make it disappear.
-If it still reproduces on a fresh VM, the problem is more likely in code or runtime initialization rather than stale host state.
-
-## Log Collection
-
-Remote VM test output is shown in the console and also stored in local log files.
-
-- `artifacts/vm-test-runtime.log`
-- `artifacts/vm-test-runtime-integration.log`
-
-The logs include the VM lifecycle, remote preparation steps, worktree sync, and `go test` stdout/stderr.
-
-## Usage
-
-Required environment variable:
-
-- `REMOTE_PASS`: SSH password for the remote machine
-
-Common targets:
-
-- `make vm-test-runtime REMOTE_PASS=...`
-- `make vm-test-runtime-integration REMOTE_PASS=...`
-- `make vm-create-runtime REMOTE_PASS=...`
-- `make vm-prepare-runtime REMOTE_PASS=...`
-- `make vm-sync-runtime REMOTE_PASS=...`
-- `make vm-delete-runtime REMOTE_PASS=...`
-
-By default, the current local worktree (`$(CURDIR)`) is synced into the VM.
-You can override it explicitly with `PODBRIDGE5_LOCAL_REPO=/path/to/repo`.
-
-## Note
-
-This runtime validation path is not designed around GitHub Actions.
-Given nested virtualization and runtime package dependencies, the current preferred path is a remote Multipass VM on the lab machine.
-
-The previous README draft has been backed up to [backup/Readme.legacy.md](backup/Readme.legacy.md).
+`podbridge5`는 컨테이너 기반 실행 환경을 다루는 Go 라이브러리입니다.
+이미지 빌드, 이미지 push, 컨테이너 생성과 실행, 볼륨 데이터 주입 같은 작업을 하나의 코드베이스에서 다룰 수 있게 하는 것이 목적입니다.
+
+이 프로젝트는 Kubernetes 전용 라이브러리가 아닙니다.
+Kubernetes 위에서 사용하는 상위 프로젝트가 있을 수는 있지만, `podbridge5` 자체는 더 일반적인 컨테이너 런타임 유틸리티 계층으로 설계하고 있습니다.
+
+## 주요 역할
+
+- 컨테이너 생성, 시작, 상태 확인
+- 컨테이너 healthcheck 계약 관리
+- 이미지 빌드와 push 보조
+- named volume 생성, 교체, 재사용
+- 호스트 디렉터리와 volume 사이 데이터 복사
+- runtime test를 위한 재현 가능한 실행 경로 제공
+
+## 어디에 쓸 수 있나
+
+- 컨테이너 실행 기반 도구 백엔드
+- 빌드/배포 파이프라인의 runtime helper
+- 개발용 container sandbox
+- 상위 orchestration 계층 아래의 runtime adapter
+- Kubernetes 외 환경의 container automation
+
+## 프로젝트 방향
+
+현재 이 저장소에서 중요하게 보는 것은 두 가지입니다.
+
+1. runtime 의존 코드와 순수 로직을 분리하는 것
+2. clean VM 기준으로 재현 가능한 테스트 경로를 유지하는 것
+
+즉, 문제를 만났을 때
+- 순수 로직 문제인지
+- 실제 Podman/Buildah/storage 초기화 문제인지
+를 빠르게 가를 수 있어야 합니다.
+
+## 문서
+
+- 한국어 runtime 검증 문서: [docs/runtime-testing.ko.md](docs/runtime-testing.ko.md)
+- 한국어 runtime 초기화 정책: [docs/runtime-policy.ko.md](docs/runtime-policy.ko.md)
+- 한국어 dry-run / timeout 정책: [docs/execution-policy.ko.md](docs/execution-policy.ko.md)
+- 한국어 구현 우선순위: [docs/implementation-priorities.ko.md](docs/implementation-priorities.ko.md)
+- English overview: [README.en.md](README.en.md)
+- English runtime validation: [docs/runtime-testing.en.md](docs/runtime-testing.en.md)
+- English runtime policy: [docs/runtime-policy.en.md](docs/runtime-policy.en.md)
+- English dry-run / timeout policy: [docs/execution-policy.en.md](docs/execution-policy.en.md)
+- 현재 리팩터 스프린트 문서: [docs/sprint-2026-04-14-runtime-refactor.md](docs/sprint-2026-04-14-runtime-refactor.md)
+- 프로젝트 상태 및 스프린트 로드맵: [docs/project-status-roadmap.ko.md](docs/project-status-roadmap.ko.md)
+- 기존 README 초안 백업: [backup/Readme.legacy.md](backup/Readme.legacy.md)
+
+## 현재 검증 방식
+
+일반적인 빠른 확인은 로컬에서 하고, runtime 의존 검증은 remote Multipass VM에서 수행합니다.
+자세한 절차와 Makefile 타깃은 runtime 검증 문서로 분리했습니다.
