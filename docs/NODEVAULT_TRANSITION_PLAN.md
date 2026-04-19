@@ -131,24 +131,19 @@ index의 상태는 두 축으로 분리한다. **이 두 축을 같은 필드에
 
 > **P1 내부 실행 순서**: TODO-04 → TODO-06 → TODO-05 → TODO-08 → TODO-07
 >
-> **P1 코드 구현 완료** (TODO-06 ✓, TODO-05 ✓, TODO-08 ✓, TODO-07 ✓).
-> **TODO-04 미완료** (NodeKit CA1062 경고, v0.2 라운드트립 검증).
-> P2(TODO-09b)로 진입 가능. TODO-04는 TODO-09b와 병렬 진행 권장.
+> **P1 전체 완료** (TODO-04 ✓, TODO-06 ✓, TODO-05 ✓, TODO-08 ✓, TODO-07 ✓).
+> P2(TODO-09b 코드 기준 충족) 진입 완료. 다음: TODO-10 (NodePalette 분리) 또는 P4.
 
 ---
 
-#### TODO-04 | proto / API 계약 갭 메우기 (진행 중)
-
-**현재 상태**
-- `dotnet build` 경고 276개 존재 (CA1062: `HttpCatalogClient.cs`, `DataRegisterRequestFactory.cs`)
-- v0.2 전체 필드 라운드트립 검증 미완료
+#### TODO-04 | proto / API 계약 갭 메우기 ✓
 
 **완료 기준**
-- [ ] v0.2 전체 필드 라운드트립 검증
-- [ ] NodeKit C# 모델이 proto 필드를 빠짐없이 매핑
-- [ ] NodeForge CAS 저장 JSON이 v0.2 전체 필드 보존
-- [ ] ListTools / GetTool 응답에 v0.2 전체 필드 포함
-- [ ] `dotnet build` 경고 증가 없음 (NodeKit CLAUDE.md §8)
+- [x] v0.2 전체 필드 라운드트립 검증 (`TestRegisterTool_V02RoundTrip` — PASS)
+- [x] NodeKit C# 모델이 proto 필드를 빠짐없이 매핑 (BuildRequest, DataRegisterRequest)
+- [x] NodeForge CAS 저장 JSON이 v0.2 전체 필드 보존 (catalog_test.go 검증)
+- [x] ListTools / GetTool 응답에 v0.2 전체 필드 포함 (catalogrest_test.go 검증)
+- [x] `dotnet build` 경고 증가 없음 — CA1062 3건 수정 (ThrowIfNull 추가)
 
 **선행 조건**: TODO-01
 
