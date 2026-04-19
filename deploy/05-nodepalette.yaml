@@ -1,0 +1,88 @@
+---
+# NodePalette — read-only artifact palette REST service
+#
+# ⚠ 현재 미사용 — NodePalette는 seoy 호스트 바이너리로 실행 (K8s Pod 아님).
+#   NodeVault와 같은 호스트에서 assets/ 디렉토리를 공유한다.
+#   vault-index.json은 seoy 호스트 로컬 파일 → K8s Pod에서 직접 접근 불가.
+#
+# NodePalette를 K8s Pod로 올리려면:
+#   1. NodeVault도 K8s로 이동하거나
+#   2. assets/ 를 PVC/HostPath로 공유하는 방식으로 전환해야 한다.
+#
+# 현재 실행 방법 (seoy 호스트에서):
+#   NODEPALETTE_ADDR=:8080 ./bin/nodepalette
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodepalette
+  namespace: nodepalette-system
+  labels:
+    app: nodepalette
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nodepalette
+  template:
+    metadata:
+      labels:
+        app: nodepalette
+    spec:
+      containers:
+        - name: nodepalette
+          image: harbor.10.113.24.96.nip.io/nodevault/nodepalette:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: NODEPALETTE_ADDR
+              value: ":8080"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /v1/catalog/tools
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodepalette
+  namespace: nodepalette-system
+  labels:
+    app: nodepalette
+spec:
+  selector:
+    app: nodepalette
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+---
+# Cilium HTTPRoute — NodePalette REST 엔드포인트 외부 노출
+# ⚠ 현재 미사용 (Deployment 미사용이므로)
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: nodepalette-http
+  namespace: nodepalette-system
+spec:
+  parentRefs:
+    - name: lab-gateway
+      namespace: harbor
+  hostnames:
+    - "palette.10.113.24.96.nip.io"
+  rules:
+    - backendRefs:
+        - name: nodepalette
+          port: 8080

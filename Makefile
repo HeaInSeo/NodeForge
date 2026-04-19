@@ -125,6 +125,7 @@ undeploy-multipass:
 # ── 로컬 바이너리 빌드 ────────────────────────────────────────────────────────
 build:
 	go build -tags "$(BUILDTAGS)" -o bin/nodevault ./cmd/controlplane/...
+	go build -o bin/nodepalette ./cmd/palette/...
 
 # ── vendor 생성 (컨테이너 이미지 빌드 전 필요) ────────────────────────────────
 # go.mod의 replace directive(podbridge5)가 로컬 경로를 가리키므로

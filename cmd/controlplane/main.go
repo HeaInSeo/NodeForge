@@ -1,13 +1,14 @@
 // Package main is the NodeVault control plane entrypoint.
-// Starts the gRPC server (PolicyService, BuildService, ValidateService, ToolRegistryService)
-// and the read-only Catalog REST HTTP server.
+// Starts the gRPC server (PolicyService, BuildService, ValidateService, ToolRegistryService).
+//
+// The read-only Catalog REST HTTP server (NodePalette) runs as a separate binary:
+// see cmd/palette/main.go.
 package main
 
 import (
 	"context"
 	"log/slog"
 	"net"
-	"net/http"
 	"os"
 	"strings"
 
@@ -19,17 +20,13 @@ import (
 
 	"github.com/HeaInSeo/NodeVault/pkg/build"
 	"github.com/HeaInSeo/NodeVault/pkg/catalog"
-	"github.com/HeaInSeo/NodeVault/pkg/catalogrest"
 	"github.com/HeaInSeo/NodeVault/pkg/index"
 	"github.com/HeaInSeo/NodeVault/pkg/ping"
 	"github.com/HeaInSeo/NodeVault/pkg/policy"
 	"github.com/HeaInSeo/NodeVault/pkg/validate"
 )
 
-const (
-	defaultGRPCAddr    = ":50051"
-	defaultCatalogAddr = ":8080"
-)
+const defaultGRPCAddr = ":50051"
 
 func main() {
 	// Required before storage/build initialization in podbridge5 rootless mode.
@@ -46,12 +43,6 @@ func main() {
 	}
 	grpcAddr = sanitizeLogValue(grpcAddr)
 
-	catalogAddr := os.Getenv("CATALOG_HTTP_ADDR")
-	if catalogAddr == "" {
-		catalogAddr = defaultCatalogAddr
-	}
-	catalogAddr = sanitizeLogValue(catalogAddr)
-
 	// ── Shared storage ──────────────────────────────────────────────────────
 
 	cat := catalog.NewCatalog()
@@ -61,17 +52,6 @@ func main() {
 		slog.Error("failed to open index store", "err", indexErr)
 		os.Exit(1)
 	}
-
-	// ── Catalog REST HTTP server ─────────────────────────────────────────────
-
-	catalogMux := catalogrest.NewMux(indexStore, cat, dataCat)
-	go func() {
-		slog.Info("Catalog REST server starting", "addr", catalogAddr)
-		//nolint:gosec // catalogAddr is operator-configured and sanitized.
-		if err := http.ListenAndServe(catalogAddr, catalogMux); err != nil {
-			slog.Error("Catalog REST server exited", "err", err)
-		}
-	}()
 
 	// ── gRPC server ──────────────────────────────────────────────────────────
 

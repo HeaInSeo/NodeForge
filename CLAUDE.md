@@ -31,7 +31,8 @@ Do not create `ToolDefinition` objects in NodeVault — that is NodeKit's draft 
 ## 3. Package structure
 
 ```
-cmd/controlplane   — gRPC server entrypoint (seoy 호스트 바이너리)
+cmd/controlplane   — NodeVault gRPC server (seoy 호스트 바이너리)
+cmd/palette        — NodePalette REST server (seoy 호스트 바이너리, 별도 프로세스)
 pkg/policy         — PolicyService: .rego management, opa build, GetPolicyBundle() RPC
 pkg/build          — BuildService: podbridge5 in-process 빌드(L2) + L3/L4 orchestration
 pkg/registry       — Harbor digest 획득
@@ -40,7 +41,7 @@ pkg/catalog        — ToolRegistryService: RegisteredToolDefinition CAS storage
 pkg/index          — vault-index.json 이중 축 상태 관리
 pkg/oras           — OCI spec referrer push (sori wrapping)
 pkg/reconcile      — Harbor 현실 대조 (FastRun / SlowRun)
-pkg/catalogrest    — NodePalette REST API (HTTP :8080)
+pkg/catalogrest    — NodePalette REST 핸들러 (cmd/palette에서 사용)
 ```
 
 Do not cross package boundaries in the wrong direction (e.g., `catalog` importing `build`).

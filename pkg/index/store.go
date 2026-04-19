@@ -204,6 +204,15 @@ func (s *Store) findIndex(casHash string) (int, error) {
 	return -1, fmt.Errorf("%w: cas_hash=%q", ErrNotFound, casHash)
 }
 
+// Reload re-reads vault-index.json from disk, replacing the in-memory cache.
+// Called by NodePalette before handling each HTTP request to pick up changes
+// written by NodeVault (separate process, shared filesystem).
+func (s *Store) Reload() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.load()
+}
+
 func (s *Store) load() error {
 	data, err := os.ReadFile(s.path)
 	if err != nil {

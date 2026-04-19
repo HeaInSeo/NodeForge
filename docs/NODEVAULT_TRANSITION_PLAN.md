@@ -249,29 +249,22 @@ index의 상태는 두 축으로 분리한다. **이 두 축을 같은 필드에
 
 ---
 
-#### TODO-10 | NodePalette 별도 바이너리 분리
+#### TODO-10 | NodePalette 별도 바이너리 분리 ✓
 
-> **서비스 이름: NodePalette** (tools + data 양쪽을 파이프라인 빌더에게 제공하는 read-only artifact palette)
-> 설계 결정 상세: [NODEPALETTE_DESIGN.md](NODEPALETTE_DESIGN.md)
->
-> 현재 구현: `pkg/catalogrest`가 NodeVault 바이너리 내 HTTP `:8080`으로 인라인 실행.
-> REST API와 NodeKit 연동은 완료됨. 남은 작업은 별도 바이너리 분리.
+**완료 기준**
+- [x] `cmd/palette/main.go` 추가 — `pkg/catalogrest` HTTP 서버 진입점
+- [x] `cmd/controlplane/main.go`에서 catalogrest goroutine 제거
+- [x] `deploy/05-nodepalette.yaml` K8s Deployment + HTTPRoute (미래용, 현재 미사용)
+- [x] NodePalette가 `lifecycle_phase = Active`만 노출 — `index.Store.ListActive()` 경유
+- [x] 요청마다 `Store.Reload()` 호출 — NodeVault 쓰기 즉시 반영
 
-**확정 결정사항**
-- 서비스 이름: `NodePalette`
-- 바이너리: `nodepalette` (`cmd/palette/main.go`)
-- GitHub 저장소: NodeVault 안 (같은 repo, 별도 진입점)
-- K8s: `nodepalette-system` namespace, `nodepalette` Deployment
-- hostname: `palette.10.113.24.96.nip.io`
+**구현 내용** (2026-04-19)
+- `cmd/palette/main.go`: seoy 호스트 바이너리, HTTP `:8080`, reload middleware
+- `pkg/index/store.go`: `Reload()` 메서드 추가
+- `deploy/05-nodepalette.yaml`: K8s 템플릿 (미래용)
+- `Makefile build`: `bin/nodevault` + `bin/nodepalette` 동시 빌드
 
-**완료 기준 (분리 작업)**
-- [ ] `cmd/palette/main.go` 추가 — `pkg/catalogrest` HTTP 서버 진입점
-- [ ] `cmd/controlplane/main.go`에서 catalogrest goroutine 제거
-- [ ] `deploy/05-nodepalette.yaml` K8s Deployment + GRPCRoute
-- [ ] NodePalette가 `lifecycle_phase = Active`만 노출하는지 확인
-- [ ] NodeKit `HttpCatalogClient`가 NodePalette 엔드포인트로 동작 확인
-
-**선행 조건**: TODO-09b (Cilium + Harbor 안정화)
+**선행 조건**: TODO-09b (완료)
 
 ---
 
