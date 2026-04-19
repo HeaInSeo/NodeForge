@@ -11,8 +11,8 @@
 | 프로젝트 | 상태 | 다음 작업 |
 |----------|------|-----------|
 | NodeForge | 운영 중, TODO-07 대기 | pkg/oras referrer push |
-| NodeKit | 운영 중, warning 276개 | CA1062 warning 해소 |
-| api-protos | Freeze, Sprint 3/4 진행 중 | go.work 제거, Dockerfile 정리 |
+| NodeKit | 운영 중, warning 276개 | CA1062 warning 해소 + ApiProtosRoot 경로 전환 |
+| api-protos | **Sprint 1-4 완료** (go.work 제거, vendor 정리 완료) | NodeForge→NodeVault rename, api-protos 저장소 삭제 |
 | DockGuard | 완료 (9개 규칙, .wasm 번들) | 신규 정책 추가 시 재빌드 |
 | DagEdit | 독립 운영 (Catalog 연결 없음) | P5에서 Catalog 연동 |
 | sori | 프로토타입 (미통합) | P3에서 NodeVault 통합 |
@@ -21,16 +21,7 @@
 
 ## 현재 진행 중인 작업 (Active)
 
-### [api-protos] proto ownership 이관
-
-- **문서**: `NodeForge/docs/PROTO_OWNERSHIP_SPRINT_PLAN.md`
-- **상태**: Sprint 1/2 완료 → **Sprint 3/4 진행 중**
-- **내용**: `go.work` api-protos 참조 제거, Dockerfile api-protos COPY 제거, vendor 정리
-- **완료 기준**: NodeForge가 api-protos 없이 빌드/테스트 통과
-- **완료 후 연쇄 작업**:
-  - NodeForge → NodeVault rename
-  - NodeKit `ApiProtosRoot` → `NodeForge/protos/` 경로 전환
-  - api-protos 저장소 삭제
+없음 — api-protos Sprint 1-4 완료로 Active 작업 없음.
 
 ---
 
@@ -38,10 +29,17 @@
 
 ### [NodeKit] compiler warning 276개 해소
 
-- **우선순위**: 즉시 (api-protos 작업과 병렬 가능)
+- **우선순위**: 즉시
 - **내용**: `HttpCatalogClient.cs`, `DataRegisterRequestFactory.cs` CA1062 null 검증 추가
 - **완료 기준**: `dotnet build` warning 0 증가 (CLAUDE.md §8)
 - **의존**: 없음
+
+### [NodeKit] ApiProtosRoot → NodeForge/protos/ 경로 전환
+
+- **우선순위**: 즉시 (api-protos Sprint 1-4 완료로 Ready)
+- **내용**: `NodeKit.csproj` auto-detect 경로를 `NodeForge/protos/` 기준으로 업데이트
+- **완료 기준**: `dotnet build` 시 `NodeForge/protos/nodeforge/v1/nodeforge.proto` 사용
+- **의존**: 없음 (api-protos cleanup 완료됨)
 
 ### [NodeForge] TODO-07 — pkg/oras referrer push
 
@@ -57,11 +55,17 @@
 
 ## 단기 (P1 완료 후)
 
+### [NodeForge] NodeForge → NodeVault rename
+
+- **우선순위**: P1 완료 후 (api-protos cleanup 완료로 Ready)
+- **내용**: repo명, 바이너리명, K8s resource명, gRPC 서비스명 일괄 변경
+- **의존**: TODO-07 완료 후 진행 권장 (rename + referrer push 동시 PR은 리뷰 부담 큼)
+
 ### [NodeForge] TODO-09b — NodeForge runtime/deployment 전환
 
 - **내용**: authority map 기반 NodeVault 단일 write authority 구현
 - **선행 조건**: TODO-09a(완료), Cilium+Harbor 안정화(완료)
-- **블로커**: api-protos cleanup 완료 + rename 후 진행 권장
+- **블로커**: rename 후 진행 권장
 
 ### [NodeForge] TODO-04 — proto/API 계약 갭 메우기
 

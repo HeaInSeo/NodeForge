@@ -1,7 +1,7 @@
 # NodeVault 아키텍처 전환 계획
 
-버전: 1.1  
-작성일: 2026-04-14 / 갱신: 2026-04-18
+버전: 1.2  
+작성일: 2026-04-14 / 갱신: 2026-04-19
 
 관련 문서:
 - 아키텍처 개요: [ARCHITECTURE.md](ARCHITECTURE.md)
@@ -20,18 +20,17 @@
 |----------|------|------|
 | NodeKit (C#/Avalonia) | NodeKit/ | L1 검증 + BuildRequest gRPC 전송 완성, AdminToolList REST 전환 완료 |
 | NodeForge (Go) | NodeForge/ | BuildService/PolicyService/ValidateService 완성, pkg/index 구현 완료, pkg/catalogrest 완성 |
-| proto canonical source | NodeForge/protos/ | `nodeforge`, `tool`, `volres` source ownership 회수 완료 (Sprint 1-2) |
+| proto canonical source | NodeForge/protos/ | `nodeforge`, `tool`, `volres` ownership 회수 + go.work 제거 완료 (Sprint 1-4 완료) |
 | DockGuard (OPA/Rego) | DockGuard/ | 9개 규칙(DFM/DSF/DGF), .wasm 번들 완성 |
 | Harbor | harbor.10.113.24.96.nip.io | 운영 중 (Helm, Cilium LB VIP, all components healthy) |
 
 ### 아직 존재하지 않는 것
 
-- ORAS referrer push (`pkg/oras` 스텁만 — TODO-07)
+- ORAS referrer push (`pkg/oras` 패키지 미존재 — TODO-07)
 - DataDefinition / DataRegisterRequest (NodeKit에 미구현 — TODO-12)
 - 삭제/철회 lifecycle (Retract/Delete API — TODO-14)
-- Harbor-Index 정합성 보정 (reconcile loop — TODO-15b)
 - DagEdit Catalog 연동 (P5 이후)
-- NodeForge → NodeVault rename (api-protos cleanup 후)
+- NodeForge → NodeVault rename (api-protos cleanup 완료 → 다음 작업 가능)
 
 ---
 
@@ -200,7 +199,7 @@ index의 상태는 두 축으로 분리한다. **이 두 축을 같은 필드에
 #### TODO-07 | `pkg/oras` 추가 — referrer push 경로
 
 **현재 상태**
-`pkg/oras/doc.go` 스텁만 존재. `SpecReferrerDigest` 항상 empty.
+`pkg/oras` 패키지 없음. `SpecReferrerDigest` 항상 empty. 등록된 모든 툴 `integrity_health = Partial`.
 
 **해야 할 것**
 image manifest와 spec(ToolDefinition JSON)을 OCI referrer artifact로 연결.
@@ -346,7 +345,7 @@ data artifact도 `lifecycle_phase` / `integrity_health` 이중 축 적용.
 
 ---
 
-#### TODO-15b | Reconcile loop 설계 — Harbor artifact 상태 판정 모델
+#### TODO-15b | Reconcile loop 설계 — Harbor artifact 상태 판정 모델 ✓
 
 **원칙**: reconcile-first. **webhook이 없어도 결국 맞춰지는 구조.**
 
@@ -355,11 +354,11 @@ data artifact도 `lifecycle_phase` / `integrity_health` 이중 축 적용.
 - `lifecycle_phase`는 reconcile이 **절대 변경하지 않음** (운영 의도 축)
 
 **완료 기준**
-- [ ] reconcile이 integrity_health만 변경하고 lifecycle_phase는 건드리지 않음
-- [ ] 5가지 상태별 NodeVault 응답 행동 정의
-- [ ] 빠른 루프 / 느린 루프 분리 구현
-- [ ] reconcile 결과가 index integrity_health 전이로 반영
-- [ ] `pkg/index` 테스트에 reconcile 상태 전이 케이스 포함
+- [x] reconcile이 integrity_health만 변경하고 lifecycle_phase는 건드리지 않음 → `pkg/reconcile/reconciler.go`
+- [x] 5가지 상태별 NodeVault 응답 행동 정의 → `RegistryChecker` 인터페이스 + 상태 판정 로직
+- [x] 빠른 루프 / 느린 루프 분리 구현 → `FastRun` (manifest+referrer 존재 확인) / `SlowRun` (pull 가능 여부)
+- [x] reconcile 결과가 index integrity_health 전이로 반영 → `Store.SetIntegrityHealth` 호출
+- [x] `pkg/reconcile` 테스트 11개 통과
 
 **선행 조건**: TODO-08 (완료), TODO-15a
 

@@ -142,16 +142,17 @@ Deleted       혼합     Unreachable
 | AdminToolList REST 연동 | NodeKit `HttpCatalogClient` |
 | DockGuard 정책 번들 동적 로드 | NodeKit `GrpcPolicyBundleProvider` |
 | Harbor | seoy lab cluster, all components healthy |
+| reconcile loop (FastRun / SlowRun) | NodeForge `pkg/reconcile` (11개 테스트 통과) |
+| proto canonical source (go.work 없음) | NodeForge `protos/nodeforge/v1/` |
 
 ### 미구현 (우선순위 순)
 
 | 항목 | 위치 | TODO | 우선순위 |
 |------|------|------|---------|
-| OCI spec referrer push | NodeForge `pkg/oras` | TODO-07 | **P1 — 지금 시작 가능** |
+| OCI spec referrer push | NodeForge `pkg/oras` (미존재) | TODO-07 | **P1 — 지금 시작 가능** |
 | NodeKit compiler warning 276개 | NodeKit CA1062 | — | **즉시 수정** |
-| api-protos cleanup | PROTO_OWNERSHIP_SPRINT_PLAN Sprint 3/4 | — | 진행 중 |
-| NodeForge → NodeVault rename | api-protos cleanup 후 | — | api-protos 이후 |
-| reconcile loop | NodeForge `pkg/reconcile` (미존재) | TODO-15b | P4 |
+| NodeKit ApiProtosRoot → NodeForge/protos/ 전환 | NodeKit `NodeKit.csproj` | — | **즉시 가능** |
+| NodeForge → NodeVault rename | api-protos cleanup 완료 → 다음 작업 가능 | — | Ready |
 | Retract/Delete lifecycle | NodeForge | TODO-14 | P4 |
 | Data write path (DataRegisterRequest) | NodeKit + NodeForge | TODO-12 | P3 |
 | DagEdit Catalog 연동 | DagEdit | — | P5 |
