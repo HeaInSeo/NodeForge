@@ -8,7 +8,6 @@
 - [NODEVAULT_TRANSITION_PLAN.md](NODEVAULT_TRANSITION_PLAN.md)
 - [AUTHORITY_MAP.md](AUTHORITY_MAP.md)
 - [DEPLOY_IN_CLUSTER.md](DEPLOY_IN_CLUSTER.md)
-- [api-protos sunset plan](../../api-protos/docs/API_PROTOS_SUNSET_PLAN.md)
 
 ## 목적
 

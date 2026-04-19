@@ -1,4 +1,4 @@
-module github.com/HeaInSeo/NodeForge
+module github.com/HeaInSeo/NodeVault
 
 go 1.25.5
 

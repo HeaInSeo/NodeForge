@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/HeaInSeo/NodeForge/pkg/index"
+	"github.com/HeaInSeo/NodeVault/pkg/index"
 )
 
 // RegistryChecker is the interface for checking artifact state in the OCI registry.

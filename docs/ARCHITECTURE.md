@@ -13,10 +13,10 @@
 
 ---
 
-## 이름 현황 (2026-04-18)
+## 이름 현황 (2026-04-19)
 
 현재 코드베이스 이름은 **NodeForge**다.
-최종 목표 이름은 **NodeVault**지만, api-protos freeze 해제 전까지 rename 불가.
+최종 목표 이름은 **NodeVault**. api-protos 저장소 제거 완료로 **rename 가능 상태**.
 이 문서에서는 두 이름을 혼용하며, "NodeForge(= 미래의 NodeVault)"로 표기한다.
 
 ---
@@ -190,7 +190,7 @@ index의 상태는 두 축으로 분리한다. **절대 같은 필드에 섞지 
 | reconcile loop | TODO-15b | P4 |
 | Retract / Delete lifecycle | TODO-14 | P4 |
 | Data Write Path (DataRegisterRequest) | TODO-12 | P3 |
-| NodeForge → NodeVault rename | — | api-protos cleanup 후 |
+| NodeForge → NodeVault rename | — | **Ready** (api-protos 제거 완료) |
 | DagEdit Catalog 연동 | — | P5 이후 |
 
 ---

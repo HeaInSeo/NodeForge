@@ -1,4 +1,4 @@
-# NodeForge
+# NodeVault
 
 관리자 UI(NodeKit)에서 `BuildRequest`를 받아 tool 이미지를 빌드·검증·등록하는 제어 플레인 서버.
 미래의 NodeVault. gRPC 서버 + Catalog REST API를 단일 바이너리로 제공한다.
@@ -13,7 +13,7 @@
 NodeKit (C# 어드민 UI)
     │  BuildRequest (gRPC)
     ▼
-NodeForge (이 프로젝트 — Go gRPC + REST 서버)
+NodeVault (이 프로젝트 — Go gRPC + REST 서버)
     │
     ├── L2: podbridge5 in-process 이미지 빌드 → Harbor push
     ├── L3: K8s Job dry-run (스키마 검증)
@@ -77,16 +77,16 @@ make image
 make deploy
 
 # 로컬 실행 (CGO 의존성 설치된 경우)
-./bin/nodeforge
+./bin/nodevault
 ```
 
 ### 환경 변수
 
 | 변수 | 기본값 | 설명 |
 |------|--------|------|
-| `NODEFORGE_ADDR` | `:50051` | gRPC 서버 바인딩 주소 |
-| `NODEFORGE_REGISTRY_ADDR` | `harbor.10.113.24.96.nip.io` | 이미지 push 대상 Harbor 주소 |
-| `NODEFORGE_BUILD_NAMESPACE` | `nodeforge-builds` | L4 smoke run Job 실행 네임스페이스 |
+| `NODEVAULT_ADDR` | `:50051` | gRPC 서버 바인딩 주소 |
+| `NODEVAULT_REGISTRY_ADDR` | `harbor.10.113.24.96.nip.io` | 이미지 push 대상 Harbor 주소 |
+| `NODEVAULT_BUILD_NAMESPACE` | `nodevault-builds` | L4 smoke run Job 실행 네임스페이스 |
 | `DOCKGUARD_WASM_PATH` | `assets/policy/dockguard.wasm` | DockGuard 정책 번들 경로 |
 | `CATALOG_DIR` | `assets/catalog` | tool CAS 파일 저장 디렉토리 |
 | `DATA_CATALOG_DIR` | `assets/data-catalog` | data CAS 파일 저장 디렉토리 |
@@ -134,13 +134,13 @@ assets/
   data-catalog/       — data CAS 파일
   index/              — vault-index.json
 deploy/
-  00-namespaces.yaml  — nodeforge-system / nodeforge-builds / nodeforge-smoke
+  00-namespaces.yaml  — nodevault-system / nodevault-builds / nodevault-smoke
   02-rbac.yaml        — ServiceAccount + ClusterRole + ClusterRoleBinding
-  03-nodeforge.yaml   — NodeForge Deployment
-  04-grpcroute.yaml   — Cilium GRPCRoute (nodeforge.10.113.24.96.nip.io:80)
+  03-nodevault.yaml   — NodeVault Deployment
+  04-grpcroute.yaml   — Cilium GRPCRoute (nodevault.10.113.24.96.nip.io:80)
 docs/
   PLATFORM_MAP.md     — 전체 플랫폼 구성 (시작 시 먼저 읽을 것)
-  ARCHITECTURE.md     — NodeForge 컴포넌트 구조 (현재 구현 기준)
+  ARCHITECTURE.md     — NodeVault 컴포넌트 구조 (현재 구현 기준)
 ```
 
 ---
@@ -194,5 +194,5 @@ NodeKit L1 정책 평가에 사용되는 `.wasm` 번들은 [`DockGuard`](https:/
 |----------|------|
 | [`NodeKit`](https://github.com/HeaInSeo/NodeKit) | C# 어드민 UI — ToolDefinition 편집, L1 검증, BuildRequest gRPC 전송 |
 | [`DockGuard`](https://github.com/HeaInSeo/DockGuard) | OPA/Rego Dockerfile 정책 + .wasm 번들 빌드 |
-| `protos/` | NodeForge canonical gRPC proto source |
+| `protos/` | NodeVault canonical gRPC proto source |
 | [`multipass-k8s-lab`](https://github.com/HeaInSeo/multipass-k8s-lab) | seoy VM 기반 K8s 테스트 클러스터 |

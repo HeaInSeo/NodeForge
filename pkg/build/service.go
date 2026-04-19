@@ -13,16 +13,16 @@ import (
 
 	"google.golang.org/grpc"
 
-	nfv1 "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1"
+	nfv1 "github.com/HeaInSeo/NodeVault/protos/nodeforge/v1"
 
-	"github.com/HeaInSeo/NodeForge/pkg/catalog"
-	"github.com/HeaInSeo/NodeForge/pkg/validate"
+	"github.com/HeaInSeo/NodeVault/pkg/catalog"
+	"github.com/HeaInSeo/NodeVault/pkg/validate"
 )
 
 const defaultRegistryAddr = "harbor.10.113.24.96.nip.io"
 
 func registryAddr() string {
-	if v := os.Getenv("NODEFORGE_REGISTRY_ADDR"); v != "" {
+	if v := os.Getenv("NODEVAULT_REGISTRY_ADDR"); v != "" {
 		return v
 	}
 	return defaultRegistryAddr

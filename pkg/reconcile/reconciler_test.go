@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/HeaInSeo/NodeForge/pkg/index"
-	"github.com/HeaInSeo/NodeForge/pkg/reconcile"
+	"github.com/HeaInSeo/NodeVault/pkg/index"
+	"github.com/HeaInSeo/NodeVault/pkg/reconcile"
 )
 
 // fakeChecker implements RegistryChecker for tests.

@@ -1,8 +1,8 @@
-# NodeForge — Claude Code Guidelines
+# NodeVault — Claude Code Guidelines
 
 ## 1. Responsibility boundary (immutable)
 
-**NodeForge owns**: BuildRequest reception (gRPC server), builder Job orchestration,
+**NodeVault owns**: BuildRequest reception (gRPC server), builder Job orchestration,
 DockGuard policy bundle management (`PolicyService`: .rego → opa build → .wasm → gRPC),
 internal registry integration, `RegisteredToolDefinition` creation and CAS storage,
 L3 kind dry-run (`ValidateService`), L4 smoke run (`ValidateService`),
@@ -12,22 +12,22 @@ and `ToolRegistryService`.
 `BuildRequest` generation, `AdminToolList` display, and all admin-side UI semantics.
 
 **builder workload owns**: actual image building inside the cluster Job.
-NodeForge orchestrates the Job but does not build images directly.
+NodeVault orchestrates the Job but does not build images directly.
 
-Do not implement authoring UI or L1 validation in NodeForge.
-Do not build images directly in NodeForge — delegate to builder Job.
+Do not implement authoring UI or L1 validation in NodeVault.
+Do not build images directly in NodeVault — delegate to builder Job.
 
 ## 2. Key term boundaries (immutable)
 
 | Term | Meaning |
 |------|---------|
-| `BuildRequest` | What NodeKit sends over gRPC. Input to NodeForge. |
-| `RegisteredToolDefinition` | Post-L4 confirmed object. CAS-stored by NodeForge. SHA256 hash = filename. |
-| `builder workload` | Cluster-internal Job that runs the actual image build. Not part of NodeForge binary. |
-| `AdminToolList` | NodeKit's admin view — NodeForge does NOT own or render this. |
+| `BuildRequest` | What NodeKit sends over gRPC. Input to NodeVault. |
+| `RegisteredToolDefinition` | Post-L4 confirmed object. CAS-stored by NodeVault. SHA256 hash = filename. |
+| `builder workload` | Cluster-internal Job that runs the actual image build. Not part of NodeVault binary. |
+| `AdminToolList` | NodeKit's admin view — NodeVault does NOT own or render this. |
 
-Do not create `ToolDefinition` objects in NodeForge — that is NodeKit's draft model.
-`RegisteredToolDefinition` is the only post-registration object NodeForge produces.
+Do not create `ToolDefinition` objects in NodeVault — that is NodeKit's draft model.
+`RegisteredToolDefinition` is the only post-registration object NodeVault produces.
 
 ## 3. Package structure
 
@@ -56,7 +56,7 @@ Do not proceed to detail work if the loop has not closed.
 
 ## 5. kubeconfig / K8s API access
 
-NodeForge accesses K8s via local kubeconfig. No Ingress or service mesh in the sprint scope.
+NodeVault accesses K8s via local kubeconfig. No Ingress or service mesh in the sprint scope.
 Do not design for in-cluster service account auth yet — that is roadmap (see `deploy/02-rbac.yaml`
 which is deployed proactively but not yet used).
 
@@ -73,14 +73,14 @@ make deploy-multipass   # 레지스트리 + RBAC + 네임스페이스 배포
 ```
 containerd insecure registry 설정도 필요합니다 (`docs/MULTIPASS_K8S_TESTING.md` 참조).
 
-통합 테스트는 NodeForge를 로컬 바이너리로 실행하고(`bin/nodeforge`) kubeconfig로 원격 클러스터에 접속합니다.
+통합 테스트는 NodeVault를 로컬 바이너리로 실행하고(`bin/nodevault`) kubeconfig로 원격 클러스터에 접속합니다.
 
 ## 6. Decision checklist before every change
 
-- Does it add builder Job image-build logic into the NodeForge binary? **Block — delegate to builder workload.**
+- Does it add builder Job image-build logic into the NodeVault binary? **Block — delegate to builder workload.**
 - Does it add authoring UI or L1 validation logic? **Block — that is NodeKit.**
 - Does it touch the gRPC proto contract? **Requires coordination with NodeKit.**
-- Does it add `ToolDefinition` (NodeKit draft model) to NodeForge? **Block.**
+- Does it add `ToolDefinition` (NodeKit draft model) to NodeVault? **Block.**
 - Does it proceed to RegisteredToolDefinition/manifest/dry-run before the orchestration loop gate passes? **Block.**
 
 ## 7. Small diffs; no unrelated refactors

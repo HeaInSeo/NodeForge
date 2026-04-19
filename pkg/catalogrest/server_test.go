@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	nfv1 "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1"
+	nfv1 "github.com/HeaInSeo/NodeVault/protos/nodeforge/v1"
 
-	"github.com/HeaInSeo/NodeForge/pkg/catalog"
-	"github.com/HeaInSeo/NodeForge/pkg/catalogrest"
-	"github.com/HeaInSeo/NodeForge/pkg/index"
+	"github.com/HeaInSeo/NodeVault/pkg/catalog"
+	"github.com/HeaInSeo/NodeVault/pkg/catalogrest"
+	"github.com/HeaInSeo/NodeVault/pkg/index"
 )
 
 // ── test helpers ──────────────────────────────────────────────────────────────

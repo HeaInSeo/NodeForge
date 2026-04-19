@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/HeaInSeo/NodeForge/pkg/index"
+	"github.com/HeaInSeo/NodeVault/pkg/index"
 )
 
 func newStore(t *testing.T) *index.Store {

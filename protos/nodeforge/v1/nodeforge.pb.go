@@ -2430,7 +2430,7 @@ const file_nodeforge_v1_nodeforge_proto_rawDesc = "" +
 	"\aGetData\x12\x1c.nodeforge.v1.GetDataRequest\x1a&.nodeforge.v1.RegisteredDataDefinition\x12I\n" +
 	"\bListData\x12\x1d.nodeforge.v1.ListDataRequest\x1a\x1e.nodeforge.v1.ListDataResponse2L\n" +
 	"\vPingService\x12=\n" +
-	"\x04Ping\x12\x19.nodeforge.v1.PingRequest\x1a\x1a.nodeforge.v1.PingResponseB@Z>github.com/HeaInSeo/NodeForge/protos/nodeforge/v1;nodeforgesv1b\x06proto3"
+	"\x04Ping\x12\x19.nodeforge.v1.PingRequest\x1a\x1a.nodeforge.v1.PingResponseB@Z>github.com/HeaInSeo/NodeVault/protos/nodeforge/v1;nodeforgesv1b\x06proto3"
 
 var (
 	file_nodeforge_v1_nodeforge_proto_rawDescOnce sync.Once

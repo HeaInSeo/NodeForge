@@ -7,7 +7,7 @@
 #   - Gateway에 port 80 HTTP 리스너가 있어야 한다 (h2c — TLS 없는 HTTP/2)
 #
 # 접근 방법 (NodeKit 기준):
-#   addr := "nodeforge.10.113.24.96.nip.io:80"
+#   addr := "nodevault.10.113.24.96.nip.io:80"
 #   conn, _ := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 #
 # parentRef 수정 방법:
@@ -16,8 +16,8 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: GRPCRoute
 metadata:
-  name: nodeforge-grpc
-  namespace: nodeforge-system
+  name: nodevault-grpc
+  namespace: nodevault-system
 spec:
   parentRefs:
     # Harbor HTTPRoute와 동일한 Gateway를 공유한다.
@@ -25,9 +25,9 @@ spec:
     - name: lab-gateway
       namespace: harbor
   hostnames:
-    - "nodeforge.10.113.24.96.nip.io"
+    - "nodevault.10.113.24.96.nip.io"
   rules:
     # 모든 gRPC 서비스/메서드를 허용 (matches 미지정 = 전체 통과)
     - backendRefs:
-        - name: nodeforge-controlplane
+        - name: nodevault-controlplane
           port: 50051

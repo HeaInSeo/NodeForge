@@ -8,7 +8,7 @@
 //	# Harbor 재개 (suspend 상태인 경우)
 //	scripts/host/harbor-resume.sh
 //	# NodeForge 로컬 실행 후 테스트
-//	NODEFORGE_REGISTRY_ADDR=harbor.10.113.24.96.nip.io go run ./cmd/controlplane &
+//	NODEVAULT_REGISTRY_ADDR=harbor.10.113.24.96.nip.io go run ./cmd/controlplane &
 //	go test -v -tags=integration ./pkg/build/... -timeout 10m
 //
 // 자세한 내용: docs/MULTIPASS_K8S_TESTING.md
@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	nfv1 "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1"
+	nfv1 "github.com/HeaInSeo/NodeVault/protos/nodeforge/v1"
 )
 
 const nodeforgeAddr = "localhost:50051" // assumes port-forward active

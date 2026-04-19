@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	nfv1 "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1"
+	nfv1 "github.com/HeaInSeo/NodeVault/protos/nodeforge/v1"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -66,14 +66,14 @@ func (m *mockBuilder) Close() error {
 // ─── registryAddr ─────────────────────────────────────────────────────────────
 
 func TestRegistryAddr_Default(t *testing.T) {
-	t.Setenv("NODEFORGE_REGISTRY_ADDR", "")
+	t.Setenv("NODEVAULT_REGISTRY_ADDR", "")
 	if got := registryAddr(); got != defaultRegistryAddr {
 		t.Errorf("got %q, want %q", got, defaultRegistryAddr)
 	}
 }
 
 func TestRegistryAddr_EnvOverride(t *testing.T) {
-	t.Setenv("NODEFORGE_REGISTRY_ADDR", "localhost:5000")
+	t.Setenv("NODEVAULT_REGISTRY_ADDR", "localhost:5000")
 	if got := registryAddr(); got != "localhost:5000" {
 		t.Errorf("got %q, want %q", got, "localhost:5000")
 	}

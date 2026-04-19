@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/HeaInSeo/NodeForge/pkg/catalog"
-	"github.com/HeaInSeo/NodeForge/pkg/catalogrest"
-	"github.com/HeaInSeo/NodeForge/pkg/index"
+	"github.com/HeaInSeo/NodeVault/pkg/catalog"
+	"github.com/HeaInSeo/NodeVault/pkg/catalogrest"
+	"github.com/HeaInSeo/NodeVault/pkg/index"
 )
 
 // fakeReconciler records which casHashes were triggered.

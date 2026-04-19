@@ -28,14 +28,14 @@ RUN go build \
     -mod=vendor \
     -tags "exclude_graphdriver_btrfs containers_image_openpgp exclude_graphdriver_devicemapper" \
     -ldflags="-s -w" \
-    -o /bin/nodeforge \
+    -o /bin/nodevault \
     ./cmd/controlplane/...
 
 # ── Stage 2: 런타임 이미지 ────────────────────────────────────────────────────
 # podbridge5 기반 이미지 빌드가 Pod 내에서 동작하려면 overlay + runc 런타임이 필요하다.
 FROM quay.io/buildah/stable:v1.37.1
 
-COPY --from=builder /bin/nodeforge /usr/local/bin/nodeforge
+COPY --from=builder /bin/nodevault /usr/local/bin/nodevault
 
 # 컨테이너 스토리지 디렉토리 (K8s Deployment에서 emptyDir 볼륨으로 마운트)
 VOLUME ["/var/lib/containers"]
@@ -47,4 +47,4 @@ RUN mkdir -p /etc/containers && \
 
 EXPOSE 50051
 
-ENTRYPOINT ["/usr/local/bin/nodeforge"]
+ENTRYPOINT ["/usr/local/bin/nodevault"]

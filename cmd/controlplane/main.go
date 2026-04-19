@@ -1,4 +1,4 @@
-// Package main is the NodeForge control plane entrypoint.
+// Package main is the NodeVault control plane entrypoint.
 // Starts the gRPC server (PolicyService, BuildService, ValidateService, ToolRegistryService)
 // and the read-only Catalog REST HTTP server.
 package main
@@ -13,17 +13,17 @@ import (
 
 	"google.golang.org/grpc"
 
-	nfv1 "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1"
+	nfv1 "github.com/HeaInSeo/NodeVault/protos/nodeforge/v1"
 
 	"github.com/HeaInSeo/podbridge5"
 
-	"github.com/HeaInSeo/NodeForge/pkg/build"
-	"github.com/HeaInSeo/NodeForge/pkg/catalog"
-	"github.com/HeaInSeo/NodeForge/pkg/catalogrest"
-	"github.com/HeaInSeo/NodeForge/pkg/index"
-	"github.com/HeaInSeo/NodeForge/pkg/ping"
-	"github.com/HeaInSeo/NodeForge/pkg/policy"
-	"github.com/HeaInSeo/NodeForge/pkg/validate"
+	"github.com/HeaInSeo/NodeVault/pkg/build"
+	"github.com/HeaInSeo/NodeVault/pkg/catalog"
+	"github.com/HeaInSeo/NodeVault/pkg/catalogrest"
+	"github.com/HeaInSeo/NodeVault/pkg/index"
+	"github.com/HeaInSeo/NodeVault/pkg/ping"
+	"github.com/HeaInSeo/NodeVault/pkg/policy"
+	"github.com/HeaInSeo/NodeVault/pkg/validate"
 )
 
 const (
@@ -40,7 +40,7 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	grpcAddr := os.Getenv("NODEFORGE_ADDR")
+	grpcAddr := os.Getenv("NODEVAULT_ADDR")
 	if grpcAddr == "" {
 		grpcAddr = defaultGRPCAddr
 	}
@@ -116,7 +116,7 @@ func main() {
 	}
 
 	//nolint:gosec // listener address is normalized before being attached to logs.
-	slog.Info("NodeForge gRPC server starting", "addr", sanitizeLogValue(lis.Addr().String()))
+	slog.Info("NodeVault gRPC server starting", "addr", sanitizeLogValue(lis.Addr().String()))
 
 	if serveErr := srv.Serve(lis); serveErr != nil {
 		slog.Error("server exited", "err", serveErr)

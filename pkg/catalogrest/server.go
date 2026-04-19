@@ -16,9 +16,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/HeaInSeo/NodeForge/pkg/catalog"
-	"github.com/HeaInSeo/NodeForge/pkg/index"
-	nfv1 "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1"
+	"github.com/HeaInSeo/NodeVault/pkg/catalog"
+	"github.com/HeaInSeo/NodeVault/pkg/index"
+	nfv1 "github.com/HeaInSeo/NodeVault/protos/nodeforge/v1"
 )
 
 // ToolItem is the JSON wire format for a single registered tool.

@@ -18,8 +18,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/HeaInSeo/NodeForge/pkg/index"
-	nfv1 "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1"
+	"github.com/HeaInSeo/NodeVault/pkg/index"
+	nfv1 "github.com/HeaInSeo/NodeVault/protos/nodeforge/v1"
 )
 
 const defaultDataCatalogDir = "assets/datacatalog"

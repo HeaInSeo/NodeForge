@@ -56,7 +56,6 @@
 | DockGuard | `/opt/dotnet/src/github.com/HeaInSeo/DockGuard` | OPA/Rego |
 | DagEdit | `/opt/dotnet/src/github.com/HeaInSeo/DagEdit` | C# / Avalonia |
 | sori | `/opt/go/src/github.com/HeaInSeo/sori` | Go |
-| api-protos | `/opt/go/src/github.com/HeaInSeo/api-protos` | Proto (freeze 중) |
 
 ---
 
@@ -178,7 +177,6 @@ Deleted       혼합     Unreachable
 
 | 제약 | 내용 |
 |------|------|
-| api-protos freeze | `nodeforge.proto`, `tool_service.proto`, `volres_service.proto` 수정 금지. import path / go.work / vendor 수정 금지 |
 | NodeKit compiler warning | 276개 (CA1062). CLAUDE.md §8 위반 상태. 다음 작업 전 수정 필요 |
 | spec referrer 없음 | 현재 등록된 모든 툴 integrity_health = Partial (TODO-07 미완료) |
 | GrpcToolRegistryClient | NodeKit에 존재하나 MainWindow 미사용 레거시 — 향후 삭제 예정 |

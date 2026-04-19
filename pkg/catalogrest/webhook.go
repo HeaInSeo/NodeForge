@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/HeaInSeo/NodeForge/pkg/index"
+	"github.com/HeaInSeo/NodeVault/pkg/index"
 )
 
 // ReconcileTrigger is the interface for triggering a targeted reconcile run.

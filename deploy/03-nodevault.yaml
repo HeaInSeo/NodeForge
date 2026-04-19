@@ -5,28 +5,28 @@
 #   1. securityContext.privileged: true  → overlay 마운트 + runc 실행 권한
 #   2. /var/lib/containers 볼륨          → 컨테이너 이미지 스토리지
 #
-# NODEFORGE_REGISTRY_ADDR: 빌드 결과를 push할 Harbor 레지스트리 주소.
-# HARBOR_USER / HARBOR_PASS: Harbor 인증 정보 (nodeforge-harbor-auth Secret에서 주입).
+# NODEVAULT_REGISTRY_ADDR: 빌드 결과를 push할 Harbor 레지스트리 주소.
+# HARBOR_USER / HARBOR_PASS: Harbor 인증 정보 (nodevault-harbor-auth Secret에서 주입).
 #
 # in-cluster 실행 시 KUBECONFIG 불필요 — ServiceAccount token을 자동으로 사용한다.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nodeforge-controlplane
-  namespace: nodeforge-system
+  name: nodevault-controlplane
+  namespace: nodevault-system
   labels:
-    app: nodeforge-controlplane
+    app: nodevault-controlplane
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nodeforge-controlplane
+      app: nodevault-controlplane
   template:
     metadata:
       labels:
-        app: nodeforge-controlplane
+        app: nodevault-controlplane
     spec:
-      serviceAccountName: nodeforge-controlplane
+      serviceAccountName: nodevault-controlplane
       imagePullSecrets:
         - name: harbor-pull-secret
 
@@ -35,10 +35,10 @@ spec:
         runAsUser: 0
 
       containers:
-        - name: nodeforge
-          # harbor.10.113.24.96.nip.io/nodeforge/controlplane:latest
+        - name: nodevault
+          # harbor.10.113.24.96.nip.io/nodevault/controlplane:latest
           # 이미지는 `make push-image` 또는 Skopeo로 Harbor에 push한다.
-          image: harbor.10.113.24.96.nip.io/nodeforge/controlplane:latest
+          image: harbor.10.113.24.96.nip.io/nodevault/controlplane:latest
           imagePullPolicy: Always
 
           ports:
@@ -47,19 +47,19 @@ spec:
               protocol: TCP
 
           env:
-            - name: NODEFORGE_REGISTRY_ADDR
+            - name: NODEVAULT_REGISTRY_ADDR
               value: "harbor.10.113.24.96.nip.io"
-            # Harbor 인증 정보는 Secret에서 주입 (아래 nodeforge-harbor-auth 참조)
+            # Harbor 인증 정보는 Secret에서 주입 (아래 nodevault-harbor-auth 참조)
             - name: HARBOR_USER
               valueFrom:
                 secretKeyRef:
-                  name: nodeforge-harbor-auth
+                  name: nodevault-harbor-auth
                   key: username
                   optional: true
             - name: HARBOR_PASS
               valueFrom:
                 secretKeyRef:
-                  name: nodeforge-harbor-auth
+                  name: nodevault-harbor-auth
                   key: password
                   optional: true
 
@@ -101,20 +101,20 @@ spec:
           emptyDir: {}
         - name: storage-conf
           configMap:
-            name: nodeforge-storage-conf
+            name: nodevault-storage-conf
 ---
 # NodeForge gRPC Service (ClusterIP)
 # GRPCRoute가 이 Service를 backendRef로 참조한다.
 apiVersion: v1
 kind: Service
 metadata:
-  name: nodeforge-controlplane
-  namespace: nodeforge-system
+  name: nodevault-controlplane
+  namespace: nodevault-system
   labels:
-    app: nodeforge-controlplane
+    app: nodevault-controlplane
 spec:
   selector:
-    app: nodeforge-controlplane
+    app: nodevault-controlplane
   ports:
     - name: grpc
       port: 50051
@@ -124,17 +124,17 @@ spec:
 # Harbor 인증 정보 Secret 템플릿 (실제 값은 kubectl create secret으로 생성)
 #
 # 생성 방법:
-#   kubectl create secret generic nodeforge-harbor-auth \
+#   kubectl create secret generic nodevault-harbor-auth \
 #     --from-literal=username=admin \
 #     --from-literal=password=<harbor-admin-password> \
-#     -n nodeforge-system
+#     -n nodevault-system
 #
 # 아래는 참조용 구조만 명시한다 (민감 정보 미포함).
 apiVersion: v1
 kind: Secret
 metadata:
-  name: nodeforge-harbor-auth
-  namespace: nodeforge-system
+  name: nodevault-harbor-auth
+  namespace: nodevault-system
   annotations:
     # 실제 값은 kubectl create secret으로 생성할 것 — 이 파일을 git에 커밋하지 말 것
     note: "placeholder — 실제 secret은 kubectl로 생성 필요"

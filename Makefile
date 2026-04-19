@@ -17,7 +17,7 @@ BUILDTAGS ?= exclude_graphdriver_btrfs containers_image_openpgp exclude_graphdri
 # ── multipass-k8s-lab / Harbor 설정 ──────────────────────────────────────────
 MULTIPASS_KUBECONFIG ?= $(shell realpath ../multipass-k8s-lab/kubeconfig 2>/dev/null || echo "")
 MULTIPASS_REGISTRY   ?= harbor.10.113.24.96.nip.io
-IMAGE                ?= $(MULTIPASS_REGISTRY)/nodeforge/controlplane:latest
+IMAGE                ?= $(MULTIPASS_REGISTRY)/nodevault/controlplane:latest
 
 # ── 포맷 ──────────────────────────────────────────────────────────────────────
 fmt:
@@ -82,36 +82,36 @@ test-integration-multipass: build
 	fi
 	@echo "==> Cluster: $$(KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl get nodes --no-headers 2>&1 | awk '{print $$1, $$2}' | tr '\n' '  ')"
 	@echo "==> Registry: $(MULTIPASS_REGISTRY) (Harbor)"
-	@echo "==> NodeForge 로컬 바이너리 실행 중..."
+	@echo "==> NodeVault 로컬 바이너리 실행 중..."
 	@KUBECONFIG=$(MULTIPASS_KUBECONFIG) \
-	    NODEFORGE_REGISTRY_ADDR=$(MULTIPASS_REGISTRY) \
-	    ./bin/nodeforge &
+	    NODEVAULT_REGISTRY_ADDR=$(MULTIPASS_REGISTRY) \
+	    ./bin/nodevault &
 	@NF_PID=$$!; \
 	sleep 3; \
 	echo "==> 통합 테스트 실행 (pid=$$NF_PID)..."; \
 	KUBECONFIG=$(MULTIPASS_KUBECONFIG) \
-	    NODEFORGE_REGISTRY_ADDR=$(MULTIPASS_REGISTRY) \
+	    NODEVAULT_REGISTRY_ADDR=$(MULTIPASS_REGISTRY) \
 	    go test -v -tags "integration $(BUILDTAGS)" ./pkg/build/... -timeout 12m; \
 	TEST_EXIT=$$?; \
-	echo "==> NodeForge 종료 (pid=$$NF_PID)..."; \
+	echo "==> NodeVault 종료 (pid=$$NF_PID)..."; \
 	kill $$NF_PID 2>/dev/null || true; \
 	exit $$TEST_EXIT
 
 # ── 클러스터 리소스 배포 (deploy/ + k8s/) ─────────────────────────────────────
-# 순서: 네임스페이스 → RBAC → NodeForge → GRPCRoute
+# 순서: 네임스페이스 → RBAC → NodeVault → GRPCRoute
 deploy-multipass:
 	@if [ -z "$(MULTIPASS_KUBECONFIG)" ]; then \
 	    echo "ERROR: multipass-k8s-lab/kubeconfig not found." >&2; exit 1; \
 	fi
-	@echo "==> NodeForge 클러스터 리소스 배포..."
+	@echo "==> NodeVault 클러스터 리소스 배포..."
 	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/00-namespaces.yaml
 	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/02-rbac.yaml
-	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/03-nodeforge.yaml
+	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/03-nodevault.yaml
 	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/04-grpcroute.yaml
-	@echo "==> NodeForge Deployment 준비 대기..."
-	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl rollout status deployment/nodeforge-controlplane \
-	    -n nodeforge-system --timeout=180s
-	@echo "==> 배포 완료: grpc://nodeforge.10.113.24.96.nip.io:80"
+	@echo "==> NodeVault Deployment 준비 대기..."
+	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl rollout status deployment/nodevault-controlplane \
+	    -n nodevault-system --timeout=180s
+	@echo "==> 배포 완료: grpc://nodevault.10.113.24.96.nip.io:80"
 
 # ── 클러스터 리소스 제거 ──────────────────────────────────────────────────────
 undeploy-multipass:
@@ -119,12 +119,12 @@ undeploy-multipass:
 	    echo "ERROR: multipass-k8s-lab/kubeconfig not found." >&2; exit 1; \
 	fi
 	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl delete -f deploy/04-grpcroute.yaml --ignore-not-found=true
-	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl delete -f deploy/03-nodeforge.yaml --ignore-not-found=true
+	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl delete -f deploy/03-nodevault.yaml --ignore-not-found=true
 	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl delete -f deploy/02-rbac.yaml      --ignore-not-found=true
 
 # ── 로컬 바이너리 빌드 ────────────────────────────────────────────────────────
 build:
-	go build -tags "$(BUILDTAGS)" -o bin/nodeforge ./cmd/controlplane/...
+	go build -tags "$(BUILDTAGS)" -o bin/nodevault ./cmd/controlplane/...
 
 # ── vendor 생성 (컨테이너 이미지 빌드 전 필요) ────────────────────────────────
 # go.mod의 replace directive(podbridge5)가 로컬 경로를 가리키므로
@@ -132,13 +132,13 @@ build:
 vendor:
 	go mod vendor
 
-# ── NodeForge 이미지 빌드 + Harbor push ───────────────────────────────────────
+# ── NodeVault 이미지 빌드 + Harbor push ───────────────────────────────────────
 # 사전 조건:
 #   podman login harbor.10.113.24.96.nip.io   (최초 1회)
 #
 # 실행:
 #   make push-image
-#   make push-image IMAGE=harbor.10.113.24.96.nip.io/nodeforge/controlplane:v1.0.0
+#   make push-image IMAGE=harbor.10.113.24.96.nip.io/nodevault/controlplane:v1.0.0
 push-image: vendor
 	podman build \
 	    -t $(IMAGE) \

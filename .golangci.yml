@@ -121,7 +121,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/HeaInSeo/NodeForge
+        - github.com/HeaInSeo/NodeVault
 
   exclusions:
     generated: lax
