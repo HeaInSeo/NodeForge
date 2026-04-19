@@ -12,25 +12,25 @@
 
 ---
 
-## 현재 상태 (2026-04-18 기준)
+## 현재 상태 (2026-04-19 기준)
 
 ### 플랫폼 구성
 
 | 컴포넌트 | 위치 | 상태 |
 |----------|------|------|
 | NodeKit (C#/Avalonia) | NodeKit/ | L1 검증 + BuildRequest gRPC 전송 완성, AdminToolList REST 전환 완료 |
-| NodeForge (Go) | NodeForge/ | BuildService/PolicyService/ValidateService 완성, pkg/index 구현 완료, pkg/catalogrest 완성 |
+| NodeVault (Go) | NodeForge/ | BuildService/PolicyService/ValidateService 완성, pkg/index ✓, pkg/catalogrest ✓, pkg/oras ✓ |
 | proto canonical source | NodeForge/protos/ | `nodeforge`, `tool`, `volres` ownership 회수 + go.work 제거 완료 (Sprint 1-4 완료) |
 | DockGuard (OPA/Rego) | DockGuard/ | 9개 규칙(DFM/DSF/DGF), .wasm 번들 완성 |
 | Harbor | harbor.10.113.24.96.nip.io | 운영 중 (Helm, Cilium LB VIP, all components healthy) |
 
 ### 아직 존재하지 않는 것
 
-- ORAS referrer push (`pkg/oras` 패키지 미존재 — TODO-07)
+- Harbor referrer 조회 확인 (TODO-07 live 검증 — TODO-09b 배포 후)
 - DataDefinition / DataRegisterRequest (NodeKit에 미구현 — TODO-12)
 - 삭제/철회 lifecycle (Retract/Delete API — TODO-14)
 - DagEdit Catalog 연동 (P5 이후)
-- NodeForge → NodeVault rename (api-protos cleanup 완료 → 다음 작업 가능)
+- NodeForge → NodeVault K8s 배포 전환 (TODO-09b)
 
 ---
 
@@ -131,8 +131,9 @@ index의 상태는 두 축으로 분리한다. **이 두 축을 같은 필드에
 
 > **P1 내부 실행 순서**: TODO-04 → TODO-06 → TODO-05 → TODO-08 → TODO-07
 >
-> **TODO-04 미완료** (NodeKit 경고 276개, 라운드트립 검증 미완).
-> TODO-06/08은 TODO-04와 독립적으로 완료됨. TODO-07이 남은 P1 작업.
+> **P1 코드 구현 완료** (TODO-06 ✓, TODO-05 ✓, TODO-08 ✓, TODO-07 ✓).
+> **TODO-04 미완료** (NodeKit CA1062 경고, v0.2 라운드트립 검증).
+> P2(TODO-09b)로 진입 가능. TODO-04는 TODO-09b와 병렬 진행 권장.
 
 ---
 
@@ -196,23 +197,25 @@ index의 상태는 두 축으로 분리한다. **이 두 축을 같은 필드에
 
 ---
 
-#### TODO-07 | `pkg/oras` 추가 — referrer push 경로
-
-**현재 상태**
-`pkg/oras` 패키지 없음. `SpecReferrerDigest` 항상 empty. 등록된 모든 툴 `integrity_health = Partial`.
-
-**해야 할 것**
-image manifest와 spec(ToolDefinition JSON)을 OCI referrer artifact로 연결.
-구현 위치: `pkg/oras/` 패키지 + `pkg/build/service.go:BuildAndRegister` 내 호출 추가.
+#### TODO-07 | `pkg/oras` 추가 — referrer push 경로 ✓
 
 **완료 기준**
-- [ ] subject image digest에 spec referrer push 성공
-- [ ] mediaType 명시 (tool: `application/vnd.nodevault.toolspec.v1+json` / data: `application/vnd.nodevault.dataspec.v1+json`)
-- [ ] tool / data 모두 같은 패턴으로 referrer 연결 가능
-- [ ] Harbor에서 referrer 조회 확인
-- [ ] 등록된 툴의 `SpecReferrerDigest` 필드가 채워짐
+- [x] subject image digest에 spec referrer push 성공 (`pkg/oras/referrer.go:PushToolSpecReferrer`)
+- [x] mediaType 명시 (`application/vnd.nodevault.toolspec.v1+json` — sori 라이브러리 위임)
+- [x] tool / data 모두 같은 패턴으로 referrer 연결 가능 (data는 TODO-12 때 `PushDataSpecReferrer` 추가)
+- [x] 등록된 툴의 `SpecReferrerDigest` 필드가 채워짐 (`Store.SetSpecReferrerDigest`)
+- [x] 등록 직후 `integrity_health = Partial` → referrer 성공 후 `Healthy` 전이
+- [ ] Harbor에서 referrer 조회 확인 (live Harbor test — TODO-09b 배포 후)
 
-**선행 조건**: TODO-06 (완료), TODO-08 (완료) | **지금 시작 가능**
+**구현 내용** (2026-04-19)
+- `pkg/oras/referrer.go`: `PushToolSpecReferrer` — sori 라이브러리 wrapping
+- `pkg/oras/referrer_test.go`: 입력 검증 3케이스
+- `pkg/index/store.go`: `SetSpecReferrerDigest` 추가
+- `pkg/catalog/catalog.go`: 초기 `IntegrityHealth = Partial` (referrer 전까지)
+- `pkg/build/service.go`: 등록 후 referrer push → Healthy 전이 (non-fatal)
+- `go.mod/vendor`: `github.com/seoyhaein/sori v0.0.2`, `oras.land/oras-go/v2 v2.6.0`
+
+**선행 조건**: TODO-06 ✓, TODO-08 ✓
 
 ---
 
