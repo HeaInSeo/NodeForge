@@ -251,17 +251,29 @@ image manifest와 spec(ToolDefinition JSON)을 OCI referrer artifact로 연결.
 
 ---
 
-#### TODO-10 | Catalog 서비스 별도 구현 ✓
+#### TODO-10 | NodePalette 별도 바이너리 분리
 
-> 현재 구현: 별도 K8s Deployment가 아닌 NodeForge 바이너리 내 `pkg/catalogrest`.
+> **서비스 이름: NodePalette** (tools + data 양쪽을 파이프라인 빌더에게 제공하는 read-only artifact palette)
+> 설계 결정 상세: [NODEPALETTE_DESIGN.md](NODEPALETTE_DESIGN.md)
+>
+> 현재 구현: `pkg/catalogrest`가 NodeVault 바이너리 내 HTTP `:8080`으로 인라인 실행.
+> REST API와 NodeKit 연동은 완료됨. 남은 작업은 별도 바이너리 분리.
 
-**완료 기준**
-- [x] Catalog REST API (tool 목록 / data 목록 / 단건 조회) → `pkg/catalogrest`
-- [x] NodeKit이 Catalog REST API로 AdminToolList/AdminDataList 표시 → `HttpCatalogClient`
-- [x] NodeKit이 NodeVault 내부 저장 구조를 직접 알지 않음
-- [x] Catalog가 `lifecycle_phase = Active`만 노출하는지 확인
+**확정 결정사항**
+- 서비스 이름: `NodePalette`
+- 바이너리: `nodepalette` (`cmd/palette/main.go`)
+- GitHub 저장소: NodeVault 안 (같은 repo, 별도 진입점)
+- K8s: `nodepalette-system` namespace, `nodepalette` Deployment
+- hostname: `palette.10.113.24.96.nip.io`
 
-**선행 조건**: TODO-05, TODO-09a
+**완료 기준 (분리 작업)**
+- [ ] `cmd/palette/main.go` 추가 — `pkg/catalogrest` HTTP 서버 진입점
+- [ ] `cmd/controlplane/main.go`에서 catalogrest goroutine 제거
+- [ ] `deploy/05-nodepalette.yaml` K8s Deployment + GRPCRoute
+- [ ] NodePalette가 `lifecycle_phase = Active`만 노출하는지 확인
+- [ ] NodeKit `HttpCatalogClient`가 NodePalette 엔드포인트로 동작 확인
+
+**선행 조건**: TODO-09b (Cilium + Harbor 안정화)
 
 ---
 

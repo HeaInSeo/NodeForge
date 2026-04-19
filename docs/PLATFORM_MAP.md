@@ -23,11 +23,11 @@
 [NodeKit]  ── C#/Avalonia 데스크톱 클라이언트
     │ BuildRequest (gRPC)          AdminToolList (REST)
     ▼                                     ▲
-[NodeForge]  ── Go 서버 (= 미래의 NodeVault)
-    ├── BuildService     L2→L3→L4 + 등록
-    ├── PolicyService    DockGuard .wasm 번들 관리
+[NodeVault]  ── Go 서버                  │
+    ├── BuildService     L2→L3→L4 + 등록 │
+    ├── PolicyService    DockGuard .wasm  │
     ├── pkg/index        artifact 상태 원장 (이중 축)
-    └── pkg/catalogrest  Catalog REST API (read-only)
+    └── pkg/catalogrest  NodePalette REST (현재 인라인, TODO-10에서 분리)
     │ 이미지 push / pull
     ▼
 [Harbor]  ── OCI 레지스트리 (harbor.10.113.24.96.nip.io)
@@ -36,10 +36,10 @@
 
 [DockGuard]  ── OPA/Rego 정책 (.wasm 번들)
     └── NodeKit WasmPolicyChecker가 로컬 실행
-    └── NodeForge PolicyService가 번들 배포
+    └── NodeVault PolicyService가 번들 배포
 
 [DagEdit]  ── C#/Avalonia 파이프라인 빌더
-    └── Catalog와 연결 없음 ← P5 이후 과제
+    └── NodePalette와 연결 없음 ← P5 이후 과제
 
 [sori]  ── 참조 데이터 패키징
     └── 프로토타입 상태, NodeVault P3에서 통합 예정
@@ -66,8 +66,8 @@
 | K8s 클러스터 | multipass VM 3노드 (lab-master-0, lab-worker-0, lab-worker-1) |
 | CNI | Cilium |
 | Harbor | `harbor.10.113.24.96.nip.io` (Cilium LB VIP 10.113.24.96) |
-| NodeForge gRPC | `nodeforge.10.113.24.96.nip.io:80` (Cilium GRPCRoute) |
-| NodeForge Catalog REST | `http://100.123.80.48:8080` |
+| NodeVault gRPC | `nodevault.10.113.24.96.nip.io:80` (Cilium GRPCRoute) |
+| NodePalette REST (현재 NodeVault 내 인라인) | `http://100.123.80.48:8080` |
 | Harbor admin | `Harbor12345` |
 | kubeconfig | `/opt/go/src/github.com/HeaInSeo/multipass-k8s-lab/kubeconfig` |
 
@@ -86,7 +86,7 @@ ip route add 10.113.24.96/32 via 10.113.24.254
    ├── L1 정적 검증 (RequiredFields / ImageUri / PackageVersion)
    └── DockGuard .wasm 정책 검사 (WasmPolicyChecker)
 
-2. BuildRequest → gRPC → NodeForge BuildService
+2. BuildRequest → gRPC → NodeVault BuildService
    ├── L2: podbridge5 in-process 이미지 빌드 → Harbor push → digest 획득
    ├── L3: K8s Job dry-run
    └── L4: K8s smoke run
@@ -99,7 +99,7 @@ ip route add 10.113.24.96/32 via 10.113.24.254
 4. BuildEvent 스트림 → NodeKit 빌드 로그 표시
 
 5. NodeKit AdminToolList
-   └── GET /api/v1/tools → pkg/catalogrest → index.Store.ListActive()
+   └── GET /v1/catalog/tools → NodePalette(pkg/catalogrest) → index.Store.ListActive()
 ```
 
 ---
@@ -118,10 +118,10 @@ Deleted       혼합     Unreachable
 
 | 축 | 변경 주체 | 의미 |
 |----|-----------|------|
-| `lifecycle_phase` | NodeVault 명시적 호출만 | 관리자의 승인 의도 (Catalog 노출 기준) |
+| `lifecycle_phase` | NodeVault 명시적 호출만 | 관리자의 승인 의도 (NodePalette 노출 기준) |
 | `integrity_health` | reconcile loop만 | Harbor 현실 대조 결과 (알람 전용) |
 
-**Catalog 노출**: `lifecycle_phase = Active`인 것만. `integrity_health`는 무관.
+**NodePalette 노출**: `lifecycle_phase = Active`인 것만. `integrity_health`는 무관.
 
 ---
 
@@ -137,7 +137,7 @@ Deleted       혼합     Unreachable
 | L3/L4 K8s dry-run / smoke | NodeForge `pkg/validate` |
 | CAS 파일 저장 | NodeForge `pkg/catalog` |
 | artifact index (이중 축 상태) | NodeForge `pkg/index` (15개 테스트 통과) |
-| Catalog REST API | NodeForge `pkg/catalogrest` |
+| NodePalette REST API | NodeVault `pkg/catalogrest` (향후 `cmd/palette/` 분리) |
 | AdminToolList REST 연동 | NodeKit `HttpCatalogClient` |
 | DockGuard 정책 번들 동적 로드 | NodeKit `GrpcPolicyBundleProvider` |
 | Harbor | seoy lab cluster, all components healthy |
@@ -148,13 +148,12 @@ Deleted       혼합     Unreachable
 
 | 항목 | 위치 | TODO | 우선순위 |
 |------|------|------|---------|
-| OCI spec referrer push | NodeForge `pkg/oras` (미존재) | TODO-07 | **P1 — 지금 시작 가능** |
+| OCI spec referrer push (sori 통합) | NodeVault `pkg/build` + sori | TODO-07 | **P1 — 지금 시작 가능** |
 | NodeKit compiler warning 276개 | NodeKit CA1062 | — | **즉시 수정** |
-| NodeKit ApiProtosRoot → NodeForge/protos/ 전환 | NodeKit `NodeKit.csproj` | — | **즉시 가능** |
-| NodeForge → NodeVault rename | api-protos cleanup 완료 → 다음 작업 가능 | — | Ready |
-| Retract/Delete lifecycle | NodeForge | TODO-14 | P4 |
-| Data write path (DataRegisterRequest) | NodeKit + NodeForge | TODO-12 | P3 |
-| DagEdit Catalog 연동 | DagEdit | — | P5 |
+| NodePalette 별도 바이너리 분리 | NodeVault `cmd/palette/` | TODO-10 | P2 (TODO-09b 이후) |
+| Retract/Delete lifecycle | NodeVault | TODO-14 | P4 |
+| Data write path (DataRegisterRequest) | NodeKit + NodeVault | TODO-12 | P3 |
+| DagEdit NodePalette 연동 | DagEdit | — | P5 |
 
 ---
 
@@ -165,11 +164,12 @@ Deleted       혼합     Unreachable
 | 재현성 | `latest` 태그, digest 미고정, 버전 미고정 → L1 차단. bypass 없음 |
 | stableRef vs casHash | stableRef = UI 탐색용 / casHash = pipeline pin, 실행 pin |
 | stableRef cardinality | 1:N — 동일 stableRef에 여러 casHash 허용, 동시 Active 허용 |
-| Catalog 노출 기준 | lifecycle_phase = Active만. integrity_health는 무관 |
+| NodePalette 노출 기준 | lifecycle_phase = Active만. integrity_health는 무관 |
 | index write 권한 | NodeVault only (pkg/index.Store를 통해서만) |
 | lifecycle_phase 변경 권한 | NodeVault 명시적 호출만 |
 | integrity_health 변경 권한 | reconcile loop만 |
-| Catalog 위치 | NodeForge 바이너리 내 pkg/catalogrest (별도 K8s 서비스 아님) |
+| NodePalette 위치 | NodeVault 바이너리 내 pkg/catalogrest (TODO-10에서 cmd/palette/ 분리) |
+| NodePalette 이름 결정 | tools + data 양쪽 포함. NODEPALETTE_DESIGN.md 참조 |
 
 ---
 

@@ -15,9 +15,9 @@
 
 ## 이름 현황 (2026-04-19)
 
-현재 코드베이스 이름은 **NodeForge**다.
-최종 목표 이름은 **NodeVault**. api-protos 저장소 제거 완료로 **rename 가능 상태**.
-이 문서에서는 두 이름을 혼용하며, "NodeForge(= 미래의 NodeVault)"로 표기한다.
+Go 모듈, 바이너리, K8s 리소스, 환경 변수 **모두 NodeVault로 rename 완료**.
+로컬 디렉토리(`NodeForge/`)와 GitHub 저장소 이름은 repo rename 후 반영됨.
+이 문서는 **NodeVault** 이름으로 통일한다.
 
 ---
 
@@ -33,24 +33,23 @@
 ```
 [NodeKit]  ─── 관리자 UI (C#/Avalonia)
     │ BuildRequest (gRPC :50051)
-    │ AdminToolList/AdminDataList (REST :8080 via Catalog)
+    │ AdminToolList/AdminDataList (REST :8080 via NodePalette)
     ▼
-[NodeForge = 미래의 NodeVault]  ─── seoy lab cluster (K8s Deployment)
+[NodeVault]  ─── seoy lab cluster (K8s Deployment)
     ├── gRPC :50051
     │   ├── BuildService          → L2/L3/L4 + CAS 등록 + index 기록
     │   ├── PolicyService         → DockGuard .wasm 번들 관리
-    │   └── ToolRegistryService   → (레거시 gRPC, Catalog REST로 전환됨)
+    │   └── ToolRegistryService   → (레거시 gRPC, NodePalette REST로 전환됨)
     │
-    ├── Catalog REST :8080
-    │   └── pkg/catalogrest       → GET /api/v1/tools, /api/v1/data
-    │       (같은 프로세스 — 별도 K8s Deployment 아님)
+    ├── NodePalette REST :8080    (현재: 같은 프로세스 인라인, TODO-10에서 분리 예정)
+    │   └── pkg/catalogrest       → GET /v1/catalog/tools, /v1/catalog/data
     │
     ├── pkg/build     → podbridge5 in-process 빌드
     ├── pkg/policy    → DockGuard .wasm 번들
     ├── pkg/validate  → K8s dry-run / smoke (L3/L4)
     ├── pkg/catalog   → CAS 파일 저장 (assets/catalog/{casHash})
     ├── pkg/index     → vault-index.json (이중 축 상태 관리)
-    └── pkg/oras      → [스텁만, 미구현 — TODO-07]
+    └── pkg/reconcile → Harbor 현실 대조 (FastRun/SlowRun)
     │
     ├── Harbor push
     │
@@ -59,7 +58,7 @@
     └── library/<tool>:latest
         └── [spec referrer] ← TODO-07 구현 후 첨부됨 (현재 없음)
 
-[DagEdit]  ─── 파이프라인 빌더 (현재 Catalog와 연결 없음 — P5 이후)
+[DagEdit]  ─── 파이프라인 빌더 (현재 NodePalette와 연결 없음 — P5 이후)
 ```
 
 ---
@@ -69,23 +68,18 @@
 | 항목 | 값 |
 |------|-----|
 | 실행 환경 | K8s Deployment (seoy lab cluster, 100.123.80.48) |
-| namespace | `nodeforge` |
+| namespace | `nodevault-system` |
 | 이유 | podbridge5는 privileged container로 실행됨 |
-| gRPC 노출 | `nodeforge.10.113.24.96.nip.io:80` (Cilium GRPCRoute) |
-| Catalog REST 노출 | 같은 바이너리 내 HTTP :8080 |
+| gRPC 노출 | `nodevault.10.113.24.96.nip.io:80` (Cilium GRPCRoute) |
+| NodePalette REST 노출 | 같은 바이너리 내 HTTP :8080 (TODO-10에서 `nodepalette` 별도 분리) |
 | 인덱스 저장 | `assets/index/vault-index.json` (로컬 JSON 파일) |
 | Harbor | `harbor.10.113.24.96.nip.io` (Cilium LB VIP 10.113.24.96) |
 
-### Catalog 서비스 위치 (구 설계와 차이)
+### NodePalette 위치 (현재 → 목표)
 
-구 설계(CATALOG_SERVICE_DESIGN.md v0.1)는 Catalog를 **별도 K8s Deployment**로
-NodeVault 내부 REST API를 경유해 쿼리하는 구조로 설계했다.
-
-**현재 구현**: Catalog REST는 NodeForge 바이너리 내 **`pkg/catalogrest`** 패키지로 구현됐다.
-별도 K8s Deployment 없음. 같은 프로세스 내 `index.Store`에 직접 접근.
-
-이는 단일 프로세스 구조에서 유효한 선택이다.
-추후 NodeVault가 별도 서비스로 분리될 경우(TODO-09b) 재검토한다.
+현재: `pkg/catalogrest`가 NodeVault 바이너리 안에서 `:8080`으로 인라인 실행.
+목표(TODO-10): `cmd/palette/`를 추가해 `nodepalette` 바이너리로 분리.
+같은 repo, PVC 공유. 상세 설계: [NODEPALETTE_DESIGN.md](NODEPALETTE_DESIGN.md)
 
 ---
 
@@ -129,7 +123,7 @@ index의 상태는 두 축으로 분리한다. **절대 같은 필드에 섞지 
 | `lifecycle_phase` | Pending / Active / Retracted / Deleted | NodeVault 명시적 호출 | 관리자의 승인 의도 |
 | `integrity_health` | Healthy / Partial / Missing / Unreachable / Orphaned | reconcile loop | Harbor 현실과의 대조 결과 |
 
-**Catalog 노출 규칙**: `lifecycle_phase = Active`만. `integrity_health`는 알람/모니터링 전용.
+**NodePalette 노출 규칙**: `lifecycle_phase = Active`만. `integrity_health`는 알람/모니터링 전용.
 
 세부 규칙과 교차 상태 표는 **[INDEX_SCHEMA.md](INDEX_SCHEMA.md)** 참조.
 
@@ -160,8 +154,8 @@ index의 상태는 두 축으로 분리한다. **절대 같은 필드에 섞지 
 | 요청 | 현재 구현 |
 |------|-----------|
 | 툴 이미지 빌드 요청 | `BuildService.BuildAndRegister` (gRPC) |
-| 툴 목록 조회 (AdminToolList) | `GET /api/v1/tools` (Catalog REST) via `HttpCatalogClient` |
-| 데이터 목록 조회 (AdminDataList) | `GET /api/v1/data` (Catalog REST) — 현재 빈 목록 |
+| 툴 목록 조회 (AdminToolList) | `GET /v1/catalog/tools` (NodePalette REST) via `HttpCatalogClient` |
+| 데이터 목록 조회 (AdminDataList) | `GET /v1/catalog/data` (NodePalette REST) — 현재 빈 목록 |
 | 데이터 등록 요청 | 미구현 (P3 TODO-12) |
 | 삭제 / Retract | 미구현 (P4 TODO-14) |
 
@@ -176,8 +170,8 @@ index의 상태는 두 축으로 분리한다. **절대 같은 필드에 섞지 
 | `pkg/validate` | K8s dry-run / smoke | 운영 중 |
 | `pkg/catalog` | CAS 파일 저장 | 운영 중, pkg/index로 전환 예정 |
 | `pkg/index` | 인덱스 관리 (이중 축 상태) | 구현 완료 (15개 테스트) |
-| `pkg/catalogrest` | Catalog REST API (read-only) | 운영 중 |
-| `pkg/oras` | referrer push | **스텁만 (TODO-07)** |
+| `pkg/catalogrest` | NodePalette REST API (read-only, 향후 `cmd/palette/`로 분리) | 운영 중 |
+| `pkg/reconcile` | Harbor 현실 대조 (FastRun/SlowRun) | 구현 완료 (11개 테스트) |
 | `pkg/registry` | Harbor digest 조회 (`GetDigest`) | 운영 중 |
 
 ---
@@ -186,12 +180,11 @@ index의 상태는 두 축으로 분리한다. **절대 같은 필드에 섞지 
 
 | 항목 | TODO | 우선순위 |
 |------|------|---------|
-| OCI spec referrer push | TODO-07 | P1 (즉시 시작 가능) |
-| reconcile loop | TODO-15b | P4 |
+| OCI spec referrer push (sori 통합) | TODO-07 | P1 (즉시 시작 가능) |
+| NodePalette 별도 바이너리 분리 | TODO-10 | P2 (TODO-09b 이후) |
 | Retract / Delete lifecycle | TODO-14 | P4 |
 | Data Write Path (DataRegisterRequest) | TODO-12 | P3 |
-| NodeForge → NodeVault rename | — | **Ready** (api-protos 제거 완료) |
-| DagEdit Catalog 연동 | — | P5 이후 |
+| DagEdit NodePalette 연동 | — | P5 이후 |
 
 ---
 
@@ -199,8 +192,8 @@ index의 상태는 두 축으로 분리한다. **절대 같은 필드에 섞지 
 
 | 항목 | NODEVAULT_DESIGN.md v0.1 / CATALOG_SERVICE_DESIGN.md v0.1 | 현재 구현 |
 |------|-----------------------------------------------------------|-----------|
-| Catalog 위치 | 별도 K8s Deployment | NodeForge 바이너리 내 pkg/catalogrest |
-| Catalog 데이터 소스 | NodeVault 내부 REST API 경유 | 같은 프로세스 index.Store 직접 접근 |
+| NodePalette 위치 | 별도 K8s Deployment | NodeVault 바이너리 내 pkg/catalogrest (TODO-10에서 분리) |
+| NodePalette 데이터 소스 | NodeVault 내부 REST API 경유 | 같은 프로세스 index.Store 직접 접근 |
 | 인덱스 저장 | bbolt 또는 SQLite (미정) | JSON 파일 (vault-index.json) |
 | 실행 환경 | bare metal systemd | K8s Deployment (privileged) |
 | Harbor | 미설치 | 운영 중 (harbor.10.113.24.96.nip.io) |
