@@ -16,6 +16,8 @@ import (
 	nfv1 "github.com/HeaInSeo/NodeVault/protos/nodeforge/v1"
 
 	"github.com/HeaInSeo/NodeVault/pkg/catalog"
+	"github.com/HeaInSeo/NodeVault/pkg/index"
+	"github.com/HeaInSeo/NodeVault/pkg/oras"
 	"github.com/HeaInSeo/NodeVault/pkg/validate"
 )
 
@@ -31,18 +33,19 @@ func registryAddr() string {
 // Service implements BuildServiceServer.
 type Service struct {
 	nfv1.UnimplementedBuildServiceServer
-	builder   Builder
-	validator *validate.Service
-	registry  *catalog.ToolRegistryService
+	builder    Builder
+	validator  *validate.Service
+	registry   *catalog.ToolRegistryService
+	indexStore *index.Store
 }
 
 // NewService creates a BuildService backed by podbridge5.
-func NewService(validator *validate.Service, registry *catalog.ToolRegistryService) (*Service, error) {
+func NewService(validator *validate.Service, registry *catalog.ToolRegistryService, store *index.Store) (*Service, error) {
 	builder, err := newPodbridge5Builder()
 	if err != nil {
 		return nil, fmt.Errorf("build service init: %w", err)
 	}
-	return &Service{builder: builder, validator: validator, registry: registry}, nil
+	return &Service{builder: builder, validator: validator, registry: registry, indexStore: store}, nil
 }
 
 // Close releases the underlying image build storage.
@@ -140,6 +143,26 @@ func (s *Service) BuildAndRegister(req *nfv1.BuildRequest, stream grpc.ServerStr
 		_ = send(nfv1.BuildEventKind_BUILD_EVENT_KIND_LOG, "registration warning: "+regErr.Error())
 	} else {
 		_ = send(nfv1.BuildEventKind_BUILD_EVENT_KIND_LOG, "tool registered: cas="+regResp.CasHash)
+	}
+
+	// ── spec referrer push (TODO-07) ─────────────────────────────────────────────
+	// Non-fatal: if push fails, integrity_health stays Partial and reconcile retries.
+	if regErr == nil && s.indexStore != nil {
+		imageRepo := fmt.Sprintf("%s/library/%s", registryAddr(), sanitizeName(req.ToolName))
+		referrerDigest, refErr := oras.PushToolSpecReferrer(ctx, imageRepo, digest, regResp.Tool)
+		if refErr != nil {
+			slog.Warn("spec referrer push failed (integrity_health=Partial)", "err", refErr)
+			_ = send(nfv1.BuildEventKind_BUILD_EVENT_KIND_LOG, "spec referrer push failed: "+refErr.Error())
+		} else {
+			slog.Info("spec referrer attached", "referrer", referrerDigest)
+			_ = send(nfv1.BuildEventKind_BUILD_EVENT_KIND_LOG, "spec referrer attached: "+referrerDigest)
+			if idxErr := s.indexStore.SetSpecReferrerDigest(regResp.CasHash, referrerDigest); idxErr != nil {
+				slog.Warn("index spec referrer digest update failed", "err", idxErr)
+			}
+			if idxErr := s.indexStore.SetIntegrityHealth(regResp.CasHash, index.HealthHealthy); idxErr != nil {
+				slog.Warn("index integrity_health update failed", "err", idxErr)
+			}
+		}
 	}
 
 	_ = send(nfv1.BuildEventKind_BUILD_EVENT_KIND_SUCCEEDED,

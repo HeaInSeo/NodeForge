@@ -215,8 +215,8 @@ func (s *ToolRegistryService) RegisterTool(
 		Outputs:          req.Outputs,
 		Display:          req.Display,
 		Command:          req.Command,
-		LifecyclePhase:   "Active",
-		IntegrityHealth:  "Healthy",
+		LifecyclePhase:   string(index.PhaseActive),
+		IntegrityHealth:  string(index.HealthPartial), // Partial until spec referrer is pushed (pkg/oras)
 		Validation: &nfv1.ValidationStatus{
 			Phase:           "Passed",
 			LastValidatedAt: time.Now().Unix(),
@@ -238,7 +238,7 @@ func (s *ToolRegistryService) RegisterTool(
 		Version:         req.Version,
 		ImageDigest:     req.Digest,
 		LifecyclePhase:  index.PhaseActive,
-		IntegrityHealth: index.HealthHealthy,
+		IntegrityHealth: index.HealthPartial, // Partial until spec referrer is pushed (pkg/oras)
 	}
 	if appendErr := s.store.Append(entry); appendErr != nil {
 		// Duplicate is not a fatal error — the CAS file is the source of truth until

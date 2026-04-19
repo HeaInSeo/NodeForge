@@ -264,8 +264,8 @@ func TestRegisterTool_V02RoundTrip(t *testing.T) {
 	if got.LifecyclePhase != "Active" {
 		t.Errorf("LifecyclePhase: got %q want Active", got.LifecyclePhase)
 	}
-	if got.IntegrityHealth != "Healthy" {
-		t.Errorf("IntegrityHealth: got %q want Healthy", got.IntegrityHealth)
+	if got.IntegrityHealth != string(index.HealthPartial) {
+		t.Errorf("IntegrityHealth: got %q want %q (Partial until spec referrer pushed)", got.IntegrityHealth, index.HealthPartial)
 	}
 	if got.RegisteredAt == 0 {
 		t.Error("RegisteredAt should be non-zero")
@@ -578,7 +578,7 @@ func TestRegisterTool_IndexDualWrite(t *testing.T) {
 	if entry.LifecyclePhase != index.PhaseActive {
 		t.Errorf("index entry LifecyclePhase: got %q want Active", entry.LifecyclePhase)
 	}
-	if entry.IntegrityHealth != index.HealthHealthy {
-		t.Errorf("index entry IntegrityHealth: got %q want Healthy", entry.IntegrityHealth)
+	if entry.IntegrityHealth != index.HealthPartial {
+		t.Errorf("index entry IntegrityHealth: got %q want %q (Partial until spec referrer pushed)", entry.IntegrityHealth, index.HealthPartial)
 	}
 }

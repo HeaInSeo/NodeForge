@@ -108,7 +108,7 @@ func main() {
 	nfv1.RegisterDataRegistryServiceServer(srv, dataRegistrySvc)
 
 	// BuildService — image build+push → L3 → L4 → registration.
-	buildSvc, err := build.NewService(validateSvc, registrySvc)
+	buildSvc, err := build.NewService(validateSvc, registrySvc, indexStore)
 	if err != nil {
 		slog.Warn("BuildService unavailable (kubeconfig missing?)", "err", err)
 	} else {

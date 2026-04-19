@@ -152,6 +152,20 @@ func (s *Store) SetLifecyclePhase(casHash string, phase LifecyclePhase) error {
 	return s.save()
 }
 
+// SetSpecReferrerDigest records the OCI referrer digest after a successful spec push.
+// Called by pkg/oras after PushToolSpecReferrer or PushDataSpecReferrer succeeds.
+func (s *Store) SetSpecReferrerDigest(casHash, referrerDigest string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	idx, err := s.findIndex(casHash)
+	if err != nil {
+		return err
+	}
+	s.idx.Entries[idx].SpecReferrerDigest = referrerDigest
+	return s.save()
+}
+
 // SetIntegrityHealth updates the integrity_health of the entry identified by casHash.
 //
 // IMPORTANT: This method MUST be called only by the reconcile loop.

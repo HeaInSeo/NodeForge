@@ -240,7 +240,7 @@ func TestToolItem_IntegrityHealth_Default(t *testing.T) {
 	var item catalogrest.ToolItem
 	_ = json.NewDecoder(resp.Body).Decode(&item)
 
-	if item.IntegrityHealth != "Healthy" {
-		t.Errorf("IntegrityHealth: got %q want Healthy", item.IntegrityHealth)
+	if item.IntegrityHealth != "Partial" {
+		t.Errorf("IntegrityHealth: got %q want Partial (Partial until spec referrer pushed)", item.IntegrityHealth)
 	}
 }
