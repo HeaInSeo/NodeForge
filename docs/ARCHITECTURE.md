@@ -35,7 +35,7 @@ Go 모듈, 바이너리, K8s 리소스, 환경 변수 **모두 NodeVault로 rena
     │ BuildRequest (gRPC :50051)
     │ AdminToolList/AdminDataList (REST :8080 via NodePalette)
     ▼
-[NodeVault]  ─── seoy lab cluster (K8s Deployment)
+[NodeVault]  ─── seoy 호스트 바이너리 (100.123.80.48)
     ├── gRPC :50051
     │   ├── BuildService          → L2/L3/L4 + CAS 등록 + index 기록
     │   ├── PolicyService         → DockGuard .wasm 번들 관리
@@ -67,19 +67,20 @@ Go 모듈, 바이너리, K8s 리소스, 환경 변수 **모두 NodeVault로 rena
 
 | 항목 | 값 |
 |------|-----|
-| 실행 환경 | K8s Deployment (seoy lab cluster, 100.123.80.48) |
-| namespace | `nodevault-system` |
-| 이유 | podbridge5는 privileged container로 실행됨 |
-| gRPC 노출 | `nodevault.10.113.24.96.nip.io:80` (Cilium GRPCRoute) |
-| NodePalette REST 노출 | 같은 바이너리 내 HTTP :8080 (TODO-10에서 `nodepalette` 별도 분리) |
-| 인덱스 저장 | `assets/index/vault-index.json` (로컬 JSON 파일) |
+| 실행 환경 | **seoy 호스트 바이너리** (100.123.80.48) — K8s Pod 아님 |
+| 이유 | podbridge5(buildah) rootless 제약 — K8s Pod 안에서 overlay 마운트 불가 |
+| gRPC 포트 | `:50051` (seoy 호스트 직접 노출) |
+| NodePalette REST 포트 | `:8080` (seoy 호스트 직접 노출, TODO-10에서 `nodepalette` 별도 분리) |
+| K8s 접근 | 로컬 kubeconfig (`multipass-k8s-lab/kubeconfig`) — L3/L4 Job 제출 전용 |
+| K8s RBAC | `deploy/02-rbac.yaml` (apply 됨, 미래 in-cluster 전환용으로 미리 배포) |
+| 인덱스 저장 | `assets/index/vault-index.json` (seoy 호스트 로컬 파일) |
 | Harbor | `harbor.10.113.24.96.nip.io` (Cilium LB VIP 10.113.24.96) |
 
 ### NodePalette 위치 (현재 → 목표)
 
-현재: `pkg/catalogrest`가 NodeVault 바이너리 안에서 `:8080`으로 인라인 실행.
-목표(TODO-10): `cmd/palette/`를 추가해 `nodepalette` 바이너리로 분리.
-같은 repo, PVC 공유. 상세 설계: [NODEPALETTE_DESIGN.md](NODEPALETTE_DESIGN.md)
+현재: `pkg/catalogrest`가 NodeVault 바이너리 안에서 `:8080`으로 인라인 실행 (seoy 호스트 직접 노출).
+목표(TODO-10): `cmd/palette/`를 추가해 `nodepalette` 바이너리로 분리 (같은 호스트 또는 별도 프로세스).
+같은 repo. 상세 설계: [NODEPALETTE_DESIGN.md](NODEPALETTE_DESIGN.md)
 
 ---
 

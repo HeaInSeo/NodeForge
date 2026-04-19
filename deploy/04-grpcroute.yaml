@@ -1,12 +1,15 @@
 ---
-# Cilium GRPCRoute — NodeForge gRPC 엔드포인트 외부 노출
+# Cilium GRPCRoute — NodeVault gRPC 엔드포인트 외부 노출
+#
+# ⚠ 현재 미사용 — NodeVault가 K8s Pod로 이동할 때 적용한다.
+#   현재 NodeKit은 seoy 호스트 IP(100.123.80.48:50051)로 직접 연결한다.
 #
 # 전제 조건:
 #   - Gateway API CRDs v1.3.0 이상 설치됨
 #   - Cilium GatewayClass (cilium) + Gateway 가 설치됨
-#   - Gateway에 port 80 HTTP 리스너가 있어야 한다 (h2c — TLS 없는 HTTP/2)
+#   - 03-nodevault.yaml (Deployment + Service) 먼저 적용됨
 #
-# 접근 방법 (NodeKit 기준):
+# 적용 후 접근 방법 (NodeKit 기준):
 #   addr := "nodevault.10.113.24.96.nip.io:80"
 #   conn, _ := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 #

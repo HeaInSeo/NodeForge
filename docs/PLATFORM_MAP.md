@@ -66,7 +66,7 @@
 | K8s 클러스터 | multipass VM 3노드 (lab-master-0, lab-worker-0, lab-worker-1) |
 | CNI | Cilium |
 | Harbor | `harbor.10.113.24.96.nip.io` (Cilium LB VIP 10.113.24.96) |
-| NodeVault gRPC | `nodevault.10.113.24.96.nip.io:80` (Cilium GRPCRoute) |
+| NodeVault gRPC | `100.123.80.48:50051` (seoy 호스트 직접, Cilium GRPCRoute는 미사용) |
 | NodePalette REST (현재 NodeVault 내 인라인) | `http://100.123.80.48:8080` |
 | Harbor admin | `Harbor12345` |
 | kubeconfig | `/opt/go/src/github.com/HeaInSeo/multipass-k8s-lab/kubeconfig` |

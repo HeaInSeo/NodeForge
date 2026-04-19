@@ -98,20 +98,20 @@ test-integration-multipass: build
 	exit $$TEST_EXIT
 
 # ── 클러스터 리소스 배포 (deploy/ + k8s/) ─────────────────────────────────────
-# 순서: 네임스페이스 → RBAC → NodeVault → GRPCRoute
+# NodeVault는 seoy 호스트 바이너리로 실행 (K8s Pod 아님).
+# deploy-multipass는 L3/L4 Job 실행을 위한 최소 K8s 리소스만 적용한다:
+#   - 00-namespaces.yaml : nodevault-smoke (L3/L4 Job 네임스페이스)
+#   - 02-rbac.yaml       : ServiceAccount + ClusterRole (Job 제출 권한)
+# 03-nodevault.yaml (Deployment) + 04-grpcroute.yaml은 현재 미사용 (미래 in-cluster 전환용).
 deploy-multipass:
 	@if [ -z "$(MULTIPASS_KUBECONFIG)" ]; then \
 	    echo "ERROR: multipass-k8s-lab/kubeconfig not found." >&2; exit 1; \
 	fi
-	@echo "==> NodeVault 클러스터 리소스 배포..."
+	@echo "==> NodeVault K8s 지원 리소스 배포 (namespace + RBAC)..."
 	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/00-namespaces.yaml
 	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/02-rbac.yaml
-	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/03-nodevault.yaml
-	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl apply -f deploy/04-grpcroute.yaml
-	@echo "==> NodeVault Deployment 준비 대기..."
-	KUBECONFIG=$(MULTIPASS_KUBECONFIG) kubectl rollout status deployment/nodevault-controlplane \
-	    -n nodevault-system --timeout=180s
-	@echo "==> 배포 완료: grpc://nodevault.10.113.24.96.nip.io:80"
+	@echo "==> 배포 완료. NodeVault 바이너리를 seoy 호스트에서 실행하세요:"
+	@echo "    NODEVAULT_REGISTRY_ADDR=$(MULTIPASS_REGISTRY) ./bin/nodevault"
 
 # ── 클러스터 리소스 제거 ──────────────────────────────────────────────────────
 undeploy-multipass:

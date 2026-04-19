@@ -11,11 +11,10 @@ and `ToolRegistryService`.
 **NodeKit owns**: authoring UX, L1 static validation, `WasmPolicyChecker` execution,
 `BuildRequest` generation, `AdminToolList` display, and all admin-side UI semantics.
 
-**builder workload owns**: actual image building inside the cluster Job.
-NodeVault orchestrates the Job but does not build images directly.
+**image build**: NodeVault 바이너리가 podbridge5를 in-process로 직접 실행 (seoy 호스트에서).
+K8s Job으로 위임하지 않는다 — podbridge5(buildah) rootless 제약으로 K8s Pod 안에서 불가.
 
 Do not implement authoring UI or L1 validation in NodeVault.
-Do not build images directly in NodeVault — delegate to builder Job.
 
 ## 2. Key term boundaries (immutable)
 
@@ -23,7 +22,7 @@ Do not build images directly in NodeVault — delegate to builder Job.
 |------|---------|
 | `BuildRequest` | What NodeKit sends over gRPC. Input to NodeVault. |
 | `RegisteredToolDefinition` | Post-L4 confirmed object. CAS-stored by NodeVault. SHA256 hash = filename. |
-| `builder workload` | Cluster-internal Job that runs the actual image build. Not part of NodeVault binary. |
+| `image build (L2)` | podbridge5 in-process (seoy 호스트에서 NodeVault 프로세스가 직접 실행). K8s Job 아님. |
 | `AdminToolList` | NodeKit's admin view — NodeVault does NOT own or render this. |
 
 Do not create `ToolDefinition` objects in NodeVault — that is NodeKit's draft model.
@@ -32,12 +31,16 @@ Do not create `ToolDefinition` objects in NodeVault — that is NodeKit's draft 
 ## 3. Package structure
 
 ```
-cmd/controlplane   — gRPC server entrypoint
+cmd/controlplane   — gRPC server entrypoint (seoy 호스트 바이너리)
 pkg/policy         — PolicyService: .rego management, opa build, GetPolicyBundle() RPC
-pkg/build          — BuildService: builder Job orchestration, status watch, log collection
-pkg/registry       — internal registry integration (push verification, digest acquisition)
-pkg/validate       — ValidateService: kind dry-run (L3), smoke run (L4)
+pkg/build          — BuildService: podbridge5 in-process 빌드(L2) + L3/L4 orchestration
+pkg/registry       — Harbor digest 획득
+pkg/validate       — ValidateService: K8s dry-run (L3), smoke run (L4)
 pkg/catalog        — ToolRegistryService: RegisteredToolDefinition CAS storage
+pkg/index          — vault-index.json 이중 축 상태 관리
+pkg/oras           — OCI spec referrer push (sori wrapping)
+pkg/reconcile      — Harbor 현실 대조 (FastRun / SlowRun)
+pkg/catalogrest    — NodePalette REST API (HTTP :8080)
 ```
 
 Do not cross package boundaries in the wrong direction (e.g., `catalog` importing `build`).
@@ -56,9 +59,12 @@ Do not proceed to detail work if the loop has not closed.
 
 ## 5. kubeconfig / K8s API access
 
-NodeVault accesses K8s via local kubeconfig. No Ingress or service mesh in the sprint scope.
-Do not design for in-cluster service account auth yet — that is roadmap (see `deploy/02-rbac.yaml`
-which is deployed proactively but not yet used).
+NodeVault는 **seoy 호스트 바이너리**로 실행한다 — K8s Pod 아님.
+podbridge5(buildah) rootless 제약으로 K8s Pod 안에서 overlay 마운트 불가.
+K8s 접근은 로컬 kubeconfig 경유: L3/L4 Job 제출 전용.
+
+`deploy/02-rbac.yaml`은 배포되어 있음 (미래 in-cluster 전환을 위한 선행 배포).
+`deploy/03-nodevault.yaml` / `deploy/04-grpcroute.yaml`은 현재 미적용.
 
 ### 테스트 환경
 
@@ -77,7 +83,7 @@ containerd insecure registry 설정도 필요합니다 (`docs/MULTIPASS_K8S_TEST
 
 ## 6. Decision checklist before every change
 
-- Does it add builder Job image-build logic into the NodeVault binary? **Block — delegate to builder workload.**
+- Does it move image build logic out of NodeVault into a K8s Job? **Requires explicit architectural decision — current design is in-process podbridge5.**
 - Does it add authoring UI or L1 validation logic? **Block — that is NodeKit.**
 - Does it touch the gRPC proto contract? **Requires coordination with NodeKit.**
 - Does it add `ToolDefinition` (NodeKit draft model) to NodeVault? **Block.**

@@ -1,5 +1,5 @@
 ---
-# ServiceAccount for NodeForge controlplane (in-cluster 배포용).
+# ServiceAccount for NodeVault controlplane (in-cluster 배포용).
 # I-3에서 in-process 이미지 빌드 경로로 전환함에 따라 RBAC을 간소화했다:
 #   - 제거: configmaps (Dockerfile ConfigMap), pods/log (kaniko 로그 스트리밍)
 #   - 유지: namespaces, jobs, pods (L3 dry-run + L4 smoke run)
