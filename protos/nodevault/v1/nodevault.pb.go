@@ -2,9 +2,9 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.34.1
-// source: nodeforge/v1/nodeforge.proto
+// source: nodevault.proto
 
-package nodeforgesv1
+package nodevaultv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -69,11 +69,11 @@ func (x BuildEventKind) String() string {
 }
 
 func (BuildEventKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_nodeforge_v1_nodeforge_proto_enumTypes[0].Descriptor()
+	return file_nodevault_proto_enumTypes[0].Descriptor()
 }
 
 func (BuildEventKind) Type() protoreflect.EnumType {
-	return &file_nodeforge_v1_nodeforge_proto_enumTypes[0]
+	return &file_nodevault_proto_enumTypes[0]
 }
 
 func (x BuildEventKind) Number() protoreflect.EnumNumber {
@@ -82,7 +82,7 @@ func (x BuildEventKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use BuildEventKind.Descriptor instead.
 func (BuildEventKind) EnumDescriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{0}
+	return file_nodevault_proto_rawDescGZIP(), []int{0}
 }
 
 type PortSpec struct {
@@ -100,7 +100,7 @@ type PortSpec struct {
 
 func (x *PortSpec) Reset() {
 	*x = PortSpec{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[0]
+	mi := &file_nodevault_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -112,7 +112,7 @@ func (x *PortSpec) String() string {
 func (*PortSpec) ProtoMessage() {}
 
 func (x *PortSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[0]
+	mi := &file_nodevault_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -125,7 +125,7 @@ func (x *PortSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PortSpec.ProtoReflect.Descriptor instead.
 func (*PortSpec) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{0}
+	return file_nodevault_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *PortSpec) GetName() string {
@@ -189,7 +189,7 @@ type DisplaySpec struct {
 
 func (x *DisplaySpec) Reset() {
 	*x = DisplaySpec{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[1]
+	mi := &file_nodevault_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -201,7 +201,7 @@ func (x *DisplaySpec) String() string {
 func (*DisplaySpec) ProtoMessage() {}
 
 func (x *DisplaySpec) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[1]
+	mi := &file_nodevault_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -214,7 +214,7 @@ func (x *DisplaySpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisplaySpec.ProtoReflect.Descriptor instead.
 func (*DisplaySpec) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{1}
+	return file_nodevault_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *DisplaySpec) GetLabel() string {
@@ -256,7 +256,7 @@ type ValidationStatus struct {
 
 func (x *ValidationStatus) Reset() {
 	*x = ValidationStatus{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[2]
+	mi := &file_nodevault_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -268,7 +268,7 @@ func (x *ValidationStatus) String() string {
 func (*ValidationStatus) ProtoMessage() {}
 
 func (x *ValidationStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[2]
+	mi := &file_nodevault_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -281,7 +281,7 @@ func (x *ValidationStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ValidationStatus.ProtoReflect.Descriptor instead.
 func (*ValidationStatus) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{2}
+	return file_nodevault_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ValidationStatus) GetPhase() string {
@@ -313,7 +313,7 @@ type GetPolicyBundleRequest struct {
 
 func (x *GetPolicyBundleRequest) Reset() {
 	*x = GetPolicyBundleRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[3]
+	mi := &file_nodevault_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -325,7 +325,7 @@ func (x *GetPolicyBundleRequest) String() string {
 func (*GetPolicyBundleRequest) ProtoMessage() {}
 
 func (x *GetPolicyBundleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[3]
+	mi := &file_nodevault_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -338,7 +338,7 @@ func (x *GetPolicyBundleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPolicyBundleRequest.ProtoReflect.Descriptor instead.
 func (*GetPolicyBundleRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{3}
+	return file_nodevault_proto_rawDescGZIP(), []int{3}
 }
 
 type PolicyBundle struct {
@@ -352,7 +352,7 @@ type PolicyBundle struct {
 
 func (x *PolicyBundle) Reset() {
 	*x = PolicyBundle{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[4]
+	mi := &file_nodevault_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -364,7 +364,7 @@ func (x *PolicyBundle) String() string {
 func (*PolicyBundle) ProtoMessage() {}
 
 func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[4]
+	mi := &file_nodevault_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -377,7 +377,7 @@ func (x *PolicyBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicyBundle.ProtoReflect.Descriptor instead.
 func (*PolicyBundle) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{4}
+	return file_nodevault_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PolicyBundle) GetWasmBytes() []byte {
@@ -409,7 +409,7 @@ type ListPoliciesRequest struct {
 
 func (x *ListPoliciesRequest) Reset() {
 	*x = ListPoliciesRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[5]
+	mi := &file_nodevault_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -421,7 +421,7 @@ func (x *ListPoliciesRequest) String() string {
 func (*ListPoliciesRequest) ProtoMessage() {}
 
 func (x *ListPoliciesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[5]
+	mi := &file_nodevault_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -434,7 +434,7 @@ func (x *ListPoliciesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPoliciesRequest.ProtoReflect.Descriptor instead.
 func (*ListPoliciesRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{5}
+	return file_nodevault_proto_rawDescGZIP(), []int{5}
 }
 
 type PolicyInfo struct {
@@ -449,7 +449,7 @@ type PolicyInfo struct {
 
 func (x *PolicyInfo) Reset() {
 	*x = PolicyInfo{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[6]
+	mi := &file_nodevault_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -461,7 +461,7 @@ func (x *PolicyInfo) String() string {
 func (*PolicyInfo) ProtoMessage() {}
 
 func (x *PolicyInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[6]
+	mi := &file_nodevault_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -474,7 +474,7 @@ func (x *PolicyInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicyInfo.ProtoReflect.Descriptor instead.
 func (*PolicyInfo) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{6}
+	return file_nodevault_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *PolicyInfo) GetRuleId() string {
@@ -515,7 +515,7 @@ type ListPoliciesResponse struct {
 
 func (x *ListPoliciesResponse) Reset() {
 	*x = ListPoliciesResponse{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[7]
+	mi := &file_nodevault_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -527,7 +527,7 @@ func (x *ListPoliciesResponse) String() string {
 func (*ListPoliciesResponse) ProtoMessage() {}
 
 func (x *ListPoliciesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[7]
+	mi := &file_nodevault_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -540,7 +540,7 @@ func (x *ListPoliciesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListPoliciesResponse.ProtoReflect.Descriptor instead.
 func (*ListPoliciesResponse) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{7}
+	return file_nodevault_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListPoliciesResponse) GetPolicies() []*PolicyInfo {
@@ -577,7 +577,7 @@ type BuildRequest struct {
 
 func (x *BuildRequest) Reset() {
 	*x = BuildRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[8]
+	mi := &file_nodevault_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -589,7 +589,7 @@ func (x *BuildRequest) String() string {
 func (*BuildRequest) ProtoMessage() {}
 
 func (x *BuildRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[8]
+	mi := &file_nodevault_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -602,7 +602,7 @@ func (x *BuildRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuildRequest.ProtoReflect.Descriptor instead.
 func (*BuildRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{8}
+	return file_nodevault_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *BuildRequest) GetRequestId() string {
@@ -691,7 +691,7 @@ func (x *BuildRequest) GetCommand() string {
 
 type BuildEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Kind          BuildEventKind         `protobuf:"varint,1,opt,name=kind,proto3,enum=nodeforge.v1.BuildEventKind" json:"kind,omitempty"`
+	Kind          BuildEventKind         `protobuf:"varint,1,opt,name=kind,proto3,enum=nodevault.v1.BuildEventKind" json:"kind,omitempty"`
 	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	Timestamp     int64                  `protobuf:"varint,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	Digest        string                 `protobuf:"bytes,4,opt,name=digest,proto3" json:"digest,omitempty"`
@@ -701,7 +701,7 @@ type BuildEvent struct {
 
 func (x *BuildEvent) Reset() {
 	*x = BuildEvent{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[9]
+	mi := &file_nodevault_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -713,7 +713,7 @@ func (x *BuildEvent) String() string {
 func (*BuildEvent) ProtoMessage() {}
 
 func (x *BuildEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[9]
+	mi := &file_nodevault_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -726,7 +726,7 @@ func (x *BuildEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BuildEvent.ProtoReflect.Descriptor instead.
 func (*BuildEvent) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{9}
+	return file_nodevault_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *BuildEvent) GetKind() BuildEventKind {
@@ -767,7 +767,7 @@ type DryRunRequest struct {
 
 func (x *DryRunRequest) Reset() {
 	*x = DryRunRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[10]
+	mi := &file_nodevault_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -779,7 +779,7 @@ func (x *DryRunRequest) String() string {
 func (*DryRunRequest) ProtoMessage() {}
 
 func (x *DryRunRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[10]
+	mi := &file_nodevault_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -792,7 +792,7 @@ func (x *DryRunRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DryRunRequest.ProtoReflect.Descriptor instead.
 func (*DryRunRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{10}
+	return file_nodevault_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *DryRunRequest) GetRequestId() string {
@@ -819,7 +819,7 @@ type DryRunResult struct {
 
 func (x *DryRunResult) Reset() {
 	*x = DryRunResult{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[11]
+	mi := &file_nodevault_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -831,7 +831,7 @@ func (x *DryRunResult) String() string {
 func (*DryRunResult) ProtoMessage() {}
 
 func (x *DryRunResult) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[11]
+	mi := &file_nodevault_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -844,7 +844,7 @@ func (x *DryRunResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DryRunResult.ProtoReflect.Descriptor instead.
 func (*DryRunResult) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{11}
+	return file_nodevault_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DryRunResult) GetSuccess() bool {
@@ -871,7 +871,7 @@ type SmokeRunRequest struct {
 
 func (x *SmokeRunRequest) Reset() {
 	*x = SmokeRunRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[12]
+	mi := &file_nodevault_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -883,7 +883,7 @@ func (x *SmokeRunRequest) String() string {
 func (*SmokeRunRequest) ProtoMessage() {}
 
 func (x *SmokeRunRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[12]
+	mi := &file_nodevault_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -896,7 +896,7 @@ func (x *SmokeRunRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SmokeRunRequest.ProtoReflect.Descriptor instead.
 func (*SmokeRunRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{12}
+	return file_nodevault_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SmokeRunRequest) GetRequestId() string {
@@ -925,7 +925,7 @@ type SmokeRunResult struct {
 
 func (x *SmokeRunResult) Reset() {
 	*x = SmokeRunResult{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[13]
+	mi := &file_nodevault_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -937,7 +937,7 @@ func (x *SmokeRunResult) String() string {
 func (*SmokeRunResult) ProtoMessage() {}
 
 func (x *SmokeRunResult) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[13]
+	mi := &file_nodevault_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -950,7 +950,7 @@ func (x *SmokeRunResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SmokeRunResult.ProtoReflect.Descriptor instead.
 func (*SmokeRunResult) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{13}
+	return file_nodevault_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SmokeRunResult) GetSuccess() bool {
@@ -1001,7 +1001,7 @@ type RegisterToolRequest struct {
 
 func (x *RegisterToolRequest) Reset() {
 	*x = RegisterToolRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[14]
+	mi := &file_nodevault_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1013,7 +1013,7 @@ func (x *RegisterToolRequest) String() string {
 func (*RegisterToolRequest) ProtoMessage() {}
 
 func (x *RegisterToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[14]
+	mi := &file_nodevault_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1026,7 +1026,7 @@ func (x *RegisterToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterToolRequest.ProtoReflect.Descriptor instead.
 func (*RegisterToolRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{14}
+	return file_nodevault_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RegisterToolRequest) GetRequestId() string {
@@ -1123,7 +1123,7 @@ type RegisterToolResponse struct {
 
 func (x *RegisterToolResponse) Reset() {
 	*x = RegisterToolResponse{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[15]
+	mi := &file_nodevault_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1135,7 +1135,7 @@ func (x *RegisterToolResponse) String() string {
 func (*RegisterToolResponse) ProtoMessage() {}
 
 func (x *RegisterToolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[15]
+	mi := &file_nodevault_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1148,7 +1148,7 @@ func (x *RegisterToolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterToolResponse.ProtoReflect.Descriptor instead.
 func (*RegisterToolResponse) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{15}
+	return file_nodevault_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *RegisterToolResponse) GetCasHash() string {
@@ -1174,7 +1174,7 @@ type GetToolRequest struct {
 
 func (x *GetToolRequest) Reset() {
 	*x = GetToolRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[16]
+	mi := &file_nodevault_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1186,7 +1186,7 @@ func (x *GetToolRequest) String() string {
 func (*GetToolRequest) ProtoMessage() {}
 
 func (x *GetToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[16]
+	mi := &file_nodevault_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1199,7 +1199,7 @@ func (x *GetToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetToolRequest.ProtoReflect.Descriptor instead.
 func (*GetToolRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{16}
+	return file_nodevault_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetToolRequest) GetCasHash() string {
@@ -1219,7 +1219,7 @@ type ListToolsRequest struct {
 
 func (x *ListToolsRequest) Reset() {
 	*x = ListToolsRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[17]
+	mi := &file_nodevault_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1231,7 +1231,7 @@ func (x *ListToolsRequest) String() string {
 func (*ListToolsRequest) ProtoMessage() {}
 
 func (x *ListToolsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[17]
+	mi := &file_nodevault_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1244,7 +1244,7 @@ func (x *ListToolsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListToolsRequest.ProtoReflect.Descriptor instead.
 func (*ListToolsRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{17}
+	return file_nodevault_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListToolsRequest) GetStableRef() string {
@@ -1270,7 +1270,7 @@ type ListToolsResponse struct {
 
 func (x *ListToolsResponse) Reset() {
 	*x = ListToolsResponse{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[18]
+	mi := &file_nodevault_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1282,7 +1282,7 @@ func (x *ListToolsResponse) String() string {
 func (*ListToolsResponse) ProtoMessage() {}
 
 func (x *ListToolsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[18]
+	mi := &file_nodevault_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1295,7 +1295,7 @@ func (x *ListToolsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListToolsResponse.ProtoReflect.Descriptor instead.
 func (*ListToolsResponse) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{18}
+	return file_nodevault_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListToolsResponse) GetTools() []*RegisteredToolDefinition {
@@ -1329,7 +1329,7 @@ type RegisteredToolDefinition struct {
 
 func (x *RegisteredToolDefinition) Reset() {
 	*x = RegisteredToolDefinition{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[19]
+	mi := &file_nodevault_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1341,7 +1341,7 @@ func (x *RegisteredToolDefinition) String() string {
 func (*RegisteredToolDefinition) ProtoMessage() {}
 
 func (x *RegisteredToolDefinition) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[19]
+	mi := &file_nodevault_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1354,7 +1354,7 @@ func (x *RegisteredToolDefinition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisteredToolDefinition.ProtoReflect.Descriptor instead.
 func (*RegisteredToolDefinition) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{19}
+	return file_nodevault_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *RegisteredToolDefinition) GetCasHash() string {
@@ -1479,7 +1479,7 @@ type RetractToolRequest struct {
 
 func (x *RetractToolRequest) Reset() {
 	*x = RetractToolRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[20]
+	mi := &file_nodevault_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1491,7 +1491,7 @@ func (x *RetractToolRequest) String() string {
 func (*RetractToolRequest) ProtoMessage() {}
 
 func (x *RetractToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[20]
+	mi := &file_nodevault_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1504,7 +1504,7 @@ func (x *RetractToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetractToolRequest.ProtoReflect.Descriptor instead.
 func (*RetractToolRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{20}
+	return file_nodevault_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *RetractToolRequest) GetCasHash() string {
@@ -1531,7 +1531,7 @@ type RetractToolResponse struct {
 
 func (x *RetractToolResponse) Reset() {
 	*x = RetractToolResponse{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[21]
+	mi := &file_nodevault_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1543,7 +1543,7 @@ func (x *RetractToolResponse) String() string {
 func (*RetractToolResponse) ProtoMessage() {}
 
 func (x *RetractToolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[21]
+	mi := &file_nodevault_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1556,7 +1556,7 @@ func (x *RetractToolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetractToolResponse.ProtoReflect.Descriptor instead.
 func (*RetractToolResponse) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{21}
+	return file_nodevault_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *RetractToolResponse) GetCasHash() string {
@@ -1583,7 +1583,7 @@ type DeleteToolRequest struct {
 
 func (x *DeleteToolRequest) Reset() {
 	*x = DeleteToolRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[22]
+	mi := &file_nodevault_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1595,7 +1595,7 @@ func (x *DeleteToolRequest) String() string {
 func (*DeleteToolRequest) ProtoMessage() {}
 
 func (x *DeleteToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[22]
+	mi := &file_nodevault_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1608,7 +1608,7 @@ func (x *DeleteToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteToolRequest.ProtoReflect.Descriptor instead.
 func (*DeleteToolRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{22}
+	return file_nodevault_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *DeleteToolRequest) GetCasHash() string {
@@ -1635,7 +1635,7 @@ type DeleteToolResponse struct {
 
 func (x *DeleteToolResponse) Reset() {
 	*x = DeleteToolResponse{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[23]
+	mi := &file_nodevault_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1647,7 +1647,7 @@ func (x *DeleteToolResponse) String() string {
 func (*DeleteToolResponse) ProtoMessage() {}
 
 func (x *DeleteToolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[23]
+	mi := &file_nodevault_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1660,7 +1660,7 @@ func (x *DeleteToolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteToolResponse.ProtoReflect.Descriptor instead.
 func (*DeleteToolResponse) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{23}
+	return file_nodevault_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *DeleteToolResponse) GetCasHash() string {
@@ -1695,7 +1695,7 @@ type DataRegisterRequest struct {
 
 func (x *DataRegisterRequest) Reset() {
 	*x = DataRegisterRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[24]
+	mi := &file_nodevault_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1707,7 +1707,7 @@ func (x *DataRegisterRequest) String() string {
 func (*DataRegisterRequest) ProtoMessage() {}
 
 func (x *DataRegisterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[24]
+	mi := &file_nodevault_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1720,7 +1720,7 @@ func (x *DataRegisterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataRegisterRequest.ProtoReflect.Descriptor instead.
 func (*DataRegisterRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{24}
+	return file_nodevault_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *DataRegisterRequest) GetRequestId() string {
@@ -1803,7 +1803,7 @@ type DataRegisterResponse struct {
 
 func (x *DataRegisterResponse) Reset() {
 	*x = DataRegisterResponse{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[25]
+	mi := &file_nodevault_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1815,7 +1815,7 @@ func (x *DataRegisterResponse) String() string {
 func (*DataRegisterResponse) ProtoMessage() {}
 
 func (x *DataRegisterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[25]
+	mi := &file_nodevault_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1828,7 +1828,7 @@ func (x *DataRegisterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataRegisterResponse.ProtoReflect.Descriptor instead.
 func (*DataRegisterResponse) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{25}
+	return file_nodevault_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *DataRegisterResponse) GetCasHash() string {
@@ -1854,7 +1854,7 @@ type GetDataRequest struct {
 
 func (x *GetDataRequest) Reset() {
 	*x = GetDataRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[26]
+	mi := &file_nodevault_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1866,7 +1866,7 @@ func (x *GetDataRequest) String() string {
 func (*GetDataRequest) ProtoMessage() {}
 
 func (x *GetDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[26]
+	mi := &file_nodevault_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1879,7 +1879,7 @@ func (x *GetDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDataRequest.ProtoReflect.Descriptor instead.
 func (*GetDataRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{26}
+	return file_nodevault_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *GetDataRequest) GetCasHash() string {
@@ -1898,7 +1898,7 @@ type ListDataRequest struct {
 
 func (x *ListDataRequest) Reset() {
 	*x = ListDataRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[27]
+	mi := &file_nodevault_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1910,7 +1910,7 @@ func (x *ListDataRequest) String() string {
 func (*ListDataRequest) ProtoMessage() {}
 
 func (x *ListDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[27]
+	mi := &file_nodevault_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1923,7 +1923,7 @@ func (x *ListDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDataRequest.ProtoReflect.Descriptor instead.
 func (*ListDataRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{27}
+	return file_nodevault_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ListDataRequest) GetStableRef() string {
@@ -1942,7 +1942,7 @@ type ListDataResponse struct {
 
 func (x *ListDataResponse) Reset() {
 	*x = ListDataResponse{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[28]
+	mi := &file_nodevault_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1954,7 +1954,7 @@ func (x *ListDataResponse) String() string {
 func (*ListDataResponse) ProtoMessage() {}
 
 func (x *ListDataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[28]
+	mi := &file_nodevault_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1967,7 +1967,7 @@ func (x *ListDataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDataResponse.ProtoReflect.Descriptor instead.
 func (*ListDataResponse) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{28}
+	return file_nodevault_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ListDataResponse) GetData() []*RegisteredDataDefinition {
@@ -1998,7 +1998,7 @@ type RegisteredDataDefinition struct {
 
 func (x *RegisteredDataDefinition) Reset() {
 	*x = RegisteredDataDefinition{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[29]
+	mi := &file_nodevault_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2010,7 +2010,7 @@ func (x *RegisteredDataDefinition) String() string {
 func (*RegisteredDataDefinition) ProtoMessage() {}
 
 func (x *RegisteredDataDefinition) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[29]
+	mi := &file_nodevault_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2023,7 +2023,7 @@ func (x *RegisteredDataDefinition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisteredDataDefinition.ProtoReflect.Descriptor instead.
 func (*RegisteredDataDefinition) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{29}
+	return file_nodevault_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *RegisteredDataDefinition) GetCasHash() string {
@@ -2126,7 +2126,7 @@ type PingRequest struct {
 
 func (x *PingRequest) Reset() {
 	*x = PingRequest{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[30]
+	mi := &file_nodevault_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2138,7 +2138,7 @@ func (x *PingRequest) String() string {
 func (*PingRequest) ProtoMessage() {}
 
 func (x *PingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[30]
+	mi := &file_nodevault_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2151,7 +2151,7 @@ func (x *PingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingRequest.ProtoReflect.Descriptor instead.
 func (*PingRequest) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{30}
+	return file_nodevault_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *PingRequest) GetMessage() string {
@@ -2171,7 +2171,7 @@ type PingResponse struct {
 
 func (x *PingResponse) Reset() {
 	*x = PingResponse{}
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[31]
+	mi := &file_nodevault_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2183,7 +2183,7 @@ func (x *PingResponse) String() string {
 func (*PingResponse) ProtoMessage() {}
 
 func (x *PingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_nodeforge_v1_nodeforge_proto_msgTypes[31]
+	mi := &file_nodevault_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2196,7 +2196,7 @@ func (x *PingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingResponse.ProtoReflect.Descriptor instead.
 func (*PingResponse) Descriptor() ([]byte, []int) {
-	return file_nodeforge_v1_nodeforge_proto_rawDescGZIP(), []int{31}
+	return file_nodevault_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *PingResponse) GetMessage() string {
@@ -2213,11 +2213,11 @@ func (x *PingResponse) GetServerId() string {
 	return ""
 }
 
-var File_nodeforge_v1_nodeforge_proto protoreflect.FileDescriptor
+var File_nodevault_proto protoreflect.FileDescriptor
 
-const file_nodeforge_v1_nodeforge_proto_rawDesc = "" +
+const file_nodevault_proto_rawDesc = "" +
 	"\n" +
-	"\x1cnodeforge/v1/nodeforge.proto\x12\fnodeforge.v1\"\x9d\x02\n" +
+	"\x0fnodevault.proto\x12\fnodevault.v1\"\x9d\x02\n" +
 	"\bPortSpec\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04role\x18\x02 \x01(\tR\x04role\x12\x16\n" +
@@ -2225,7 +2225,7 @@ const file_nodeforge_v1_nodeforge_proto_rawDesc = "" +
 	"\x05shape\x18\x04 \x01(\tR\x05shape\x12\x1a\n" +
 	"\brequired\x18\x05 \x01(\bR\brequired\x12\x14\n" +
 	"\x05class\x18\x06 \x01(\tR\x05class\x12I\n" +
-	"\vconstraints\x18\a \x03(\v2'.nodeforge.v1.PortSpec.ConstraintsEntryR\vconstraints\x1a>\n" +
+	"\vconstraints\x18\a \x03(\v2'.nodevault.v1.PortSpec.ConstraintsEntryR\vconstraints\x1a>\n" +
 	"\x10ConstraintsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"u\n" +
@@ -2252,7 +2252,7 @@ const file_nodeforge_v1_nodeforge_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\"s\n" +
 	"\x14ListPoliciesResponse\x124\n" +
-	"\bpolicies\x18\x01 \x03(\v2\x18.nodeforge.v1.PolicyInfoR\bpolicies\x12%\n" +
+	"\bpolicies\x18\x01 \x03(\v2\x18.nodevault.v1.PolicyInfoR\bpolicies\x12%\n" +
 	"\x0ebundle_version\x18\x02 \x01(\tR\rbundleVersion\"\xf9\x03\n" +
 	"\fBuildRequest\x12\x1d\n" +
 	"\n" +
@@ -2265,13 +2265,13 @@ const file_nodeforge_v1_nodeforge_proto_rawDesc = "" +
 	"\x10environment_spec\x18\t \x01(\tR\x0fenvironmentSpec\x12\x18\n" +
 	"\aversion\x18\n" +
 	" \x01(\tR\aversion\x12.\n" +
-	"\x06inputs\x18\f \x03(\v2\x16.nodeforge.v1.PortSpecR\x06inputs\x120\n" +
-	"\aoutputs\x18\r \x03(\v2\x16.nodeforge.v1.PortSpecR\aoutputs\x123\n" +
-	"\adisplay\x18\x0e \x01(\v2\x19.nodeforge.v1.DisplaySpecR\adisplay\x12\x18\n" +
+	"\x06inputs\x18\f \x03(\v2\x16.nodevault.v1.PortSpecR\x06inputs\x120\n" +
+	"\aoutputs\x18\r \x03(\v2\x16.nodevault.v1.PortSpecR\aoutputs\x123\n" +
+	"\adisplay\x18\x0e \x01(\v2\x19.nodevault.v1.DisplaySpecR\adisplay\x12\x18\n" +
 	"\acommand\x18\x0f \x01(\tR\acommandJ\x04\b\a\x10\bJ\x04\b\b\x10\tR\vinput_namesR\foutput_names\"\x8e\x01\n" +
 	"\n" +
 	"BuildEvent\x120\n" +
-	"\x04kind\x18\x01 \x01(\x0e2\x1c.nodeforge.v1.BuildEventKindR\x04kind\x12\x18\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x1c.nodevault.v1.BuildEventKindR\x04kind\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1c\n" +
 	"\ttimestamp\x18\x03 \x01(\x03R\ttimestamp\x12\x16\n" +
 	"\x06digest\x18\x04 \x01(\tR\x06digest\"S\n" +
@@ -2304,13 +2304,13 @@ const file_nodeforge_v1_nodeforge_proto_rawDesc = "" +
 	"\n" +
 	"stable_ref\x18\n" +
 	" \x01(\tR\tstableRef\x12.\n" +
-	"\x06inputs\x18\v \x03(\v2\x16.nodeforge.v1.PortSpecR\x06inputs\x120\n" +
-	"\aoutputs\x18\f \x03(\v2\x16.nodeforge.v1.PortSpecR\aoutputs\x123\n" +
-	"\adisplay\x18\r \x01(\v2\x19.nodeforge.v1.DisplaySpecR\adisplay\x12\x18\n" +
+	"\x06inputs\x18\v \x03(\v2\x16.nodevault.v1.PortSpecR\x06inputs\x120\n" +
+	"\aoutputs\x18\f \x03(\v2\x16.nodevault.v1.PortSpecR\aoutputs\x123\n" +
+	"\adisplay\x18\r \x01(\v2\x19.nodevault.v1.DisplaySpecR\adisplay\x12\x18\n" +
 	"\acommand\x18\x0e \x01(\tR\acommandJ\x04\b\x06\x10\aJ\x04\b\a\x10\bR\vinput_namesR\foutput_names\"m\n" +
 	"\x14RegisterToolResponse\x12\x19\n" +
 	"\bcas_hash\x18\x01 \x01(\tR\acasHash\x12:\n" +
-	"\x04tool\x18\x02 \x01(\v2&.nodeforge.v1.RegisteredToolDefinitionR\x04tool\"+\n" +
+	"\x04tool\x18\x02 \x01(\v2&.nodevault.v1.RegisteredToolDefinitionR\x04tool\"+\n" +
 	"\x0eGetToolRequest\x12\x19\n" +
 	"\bcas_hash\x18\x01 \x01(\tR\acasHash\"V\n" +
 	"\x10ListToolsRequest\x12\x1d\n" +
@@ -2318,7 +2318,7 @@ const file_nodeforge_v1_nodeforge_proto_rawDesc = "" +
 	"stable_ref\x18\x01 \x01(\tR\tstableRef\x12#\n" +
 	"\rartifact_kind\x18\x02 \x01(\tR\fartifactKind\"Q\n" +
 	"\x11ListToolsResponse\x12<\n" +
-	"\x05tools\x18\x01 \x03(\v2&.nodeforge.v1.RegisteredToolDefinitionR\x05tools\"\xaa\x05\n" +
+	"\x05tools\x18\x01 \x03(\v2&.nodevault.v1.RegisteredToolDefinitionR\x05tools\"\xaa\x05\n" +
 	"\x18RegisteredToolDefinition\x12\x19\n" +
 	"\bcas_hash\x18\x01 \x01(\tR\acasHash\x12,\n" +
 	"\x12tool_definition_id\x18\x02 \x01(\tR\x10toolDefinitionId\x12\x1b\n" +
@@ -2331,12 +2331,12 @@ const file_nodeforge_v1_nodeforge_proto_rawDesc = "" +
 	" \x01(\tR\aversion\x12\x1d\n" +
 	"\n" +
 	"stable_ref\x18\v \x01(\tR\tstableRef\x12.\n" +
-	"\x06inputs\x18\f \x03(\v2\x16.nodeforge.v1.PortSpecR\x06inputs\x120\n" +
-	"\aoutputs\x18\r \x03(\v2\x16.nodeforge.v1.PortSpecR\aoutputs\x123\n" +
-	"\adisplay\x18\x0e \x01(\v2\x19.nodeforge.v1.DisplaySpecR\adisplay\x12'\n" +
+	"\x06inputs\x18\f \x03(\v2\x16.nodevault.v1.PortSpecR\x06inputs\x120\n" +
+	"\aoutputs\x18\r \x03(\v2\x16.nodevault.v1.PortSpecR\aoutputs\x123\n" +
+	"\adisplay\x18\x0e \x01(\v2\x19.nodevault.v1.DisplaySpecR\adisplay\x12'\n" +
 	"\x0flifecycle_phase\x18\x0f \x01(\tR\x0elifecyclePhase\x12>\n" +
 	"\n" +
-	"validation\x18\x10 \x01(\v2\x1e.nodeforge.v1.ValidationStatusR\n" +
+	"validation\x18\x10 \x01(\v2\x1e.nodevault.v1.ValidationStatusR\n" +
 	"validation\x12\x18\n" +
 	"\acommand\x18\x11 \x01(\tR\acommand\x12)\n" +
 	"\x10integrity_health\x18\x12 \x01(\tR\x0fintegrityHealthJ\x04\b\x06\x10\aJ\x04\b\a\x10\bR\vinput_namesR\foutput_names\"G\n" +
@@ -2367,17 +2367,17 @@ const file_nodeforge_v1_nodeforge_proto_rawDesc = "" +
 	"\n" +
 	"stable_ref\x18\t \x01(\tR\tstableRef\x123\n" +
 	"\adisplay\x18\n" +
-	" \x01(\v2\x19.nodeforge.v1.DisplaySpecR\adisplay\"m\n" +
+	" \x01(\v2\x19.nodevault.v1.DisplaySpecR\adisplay\"m\n" +
 	"\x14DataRegisterResponse\x12\x19\n" +
 	"\bcas_hash\x18\x01 \x01(\tR\acasHash\x12:\n" +
-	"\x04data\x18\x02 \x01(\v2&.nodeforge.v1.RegisteredDataDefinitionR\x04data\"+\n" +
+	"\x04data\x18\x02 \x01(\v2&.nodevault.v1.RegisteredDataDefinitionR\x04data\"+\n" +
 	"\x0eGetDataRequest\x12\x19\n" +
 	"\bcas_hash\x18\x01 \x01(\tR\acasHash\"0\n" +
 	"\x0fListDataRequest\x12\x1d\n" +
 	"\n" +
 	"stable_ref\x18\x01 \x01(\tR\tstableRef\"N\n" +
 	"\x10ListDataResponse\x12:\n" +
-	"\x04data\x18\x01 \x03(\v2&.nodeforge.v1.RegisteredDataDefinitionR\x04data\"\xcf\x03\n" +
+	"\x04data\x18\x01 \x03(\v2&.nodevault.v1.RegisteredDataDefinitionR\x04data\"\xcf\x03\n" +
 	"\x18RegisteredDataDefinition\x12\x19\n" +
 	"\bcas_hash\x18\x01 \x01(\tR\acasHash\x12\x1b\n" +
 	"\tdata_name\x18\x02 \x01(\tR\bdataName\x12\x18\n" +
@@ -2392,7 +2392,7 @@ const file_nodeforge_v1_nodeforge_proto_rawDesc = "" +
 	"\n" +
 	"stable_ref\x18\t \x01(\tR\tstableRef\x123\n" +
 	"\adisplay\x18\n" +
-	" \x01(\v2\x19.nodeforge.v1.DisplaySpecR\adisplay\x12#\n" +
+	" \x01(\v2\x19.nodevault.v1.DisplaySpecR\adisplay\x12#\n" +
 	"\rregistered_at\x18\v \x01(\x03R\fregisteredAt\x12'\n" +
 	"\x0flifecycle_phase\x18\f \x01(\tR\x0elifecyclePhase\x12)\n" +
 	"\x10integrity_health\x18\r \x01(\tR\x0fintegrityHealth\"'\n" +
@@ -2411,125 +2411,125 @@ const file_nodeforge_v1_nodeforge_proto_rawDesc = "" +
 	"\x1aBUILD_EVENT_KIND_SUCCEEDED\x10\x06\x12\x1b\n" +
 	"\x17BUILD_EVENT_KIND_FAILED\x10\a2\xbb\x01\n" +
 	"\rPolicyService\x12S\n" +
-	"\x0fGetPolicyBundle\x12$.nodeforge.v1.GetPolicyBundleRequest\x1a\x1a.nodeforge.v1.PolicyBundle\x12U\n" +
-	"\fListPolicies\x12!.nodeforge.v1.ListPoliciesRequest\x1a\".nodeforge.v1.ListPoliciesResponse2Z\n" +
+	"\x0fGetPolicyBundle\x12$.nodevault.v1.GetPolicyBundleRequest\x1a\x1a.nodevault.v1.PolicyBundle\x12U\n" +
+	"\fListPolicies\x12!.nodevault.v1.ListPoliciesRequest\x1a\".nodevault.v1.ListPoliciesResponse2Z\n" +
 	"\fBuildService\x12J\n" +
-	"\x10BuildAndRegister\x12\x1a.nodeforge.v1.BuildRequest\x1a\x18.nodeforge.v1.BuildEvent0\x012\x9d\x01\n" +
+	"\x10BuildAndRegister\x12\x1a.nodevault.v1.BuildRequest\x1a\x18.nodevault.v1.BuildEvent0\x012\x9d\x01\n" +
 	"\x0fValidateService\x12A\n" +
-	"\x06DryRun\x12\x1b.nodeforge.v1.DryRunRequest\x1a\x1a.nodeforge.v1.DryRunResult\x12G\n" +
-	"\bSmokeRun\x12\x1d.nodeforge.v1.SmokeRunRequest\x1a\x1c.nodeforge.v1.SmokeRunResult2\xb0\x03\n" +
+	"\x06DryRun\x12\x1b.nodevault.v1.DryRunRequest\x1a\x1a.nodevault.v1.DryRunResult\x12G\n" +
+	"\bSmokeRun\x12\x1d.nodevault.v1.SmokeRunRequest\x1a\x1c.nodevault.v1.SmokeRunResult2\xb0\x03\n" +
 	"\x13ToolRegistryService\x12U\n" +
-	"\fRegisterTool\x12!.nodeforge.v1.RegisterToolRequest\x1a\".nodeforge.v1.RegisterToolResponse\x12O\n" +
-	"\aGetTool\x12\x1c.nodeforge.v1.GetToolRequest\x1a&.nodeforge.v1.RegisteredToolDefinition\x12L\n" +
-	"\tListTools\x12\x1e.nodeforge.v1.ListToolsRequest\x1a\x1f.nodeforge.v1.ListToolsResponse\x12R\n" +
-	"\vRetractTool\x12 .nodeforge.v1.RetractToolRequest\x1a!.nodeforge.v1.RetractToolResponse\x12O\n" +
+	"\fRegisterTool\x12!.nodevault.v1.RegisterToolRequest\x1a\".nodevault.v1.RegisterToolResponse\x12O\n" +
+	"\aGetTool\x12\x1c.nodevault.v1.GetToolRequest\x1a&.nodevault.v1.RegisteredToolDefinition\x12L\n" +
+	"\tListTools\x12\x1e.nodevault.v1.ListToolsRequest\x1a\x1f.nodevault.v1.ListToolsResponse\x12R\n" +
+	"\vRetractTool\x12 .nodevault.v1.RetractToolRequest\x1a!.nodevault.v1.RetractToolResponse\x12O\n" +
 	"\n" +
-	"DeleteTool\x12\x1f.nodeforge.v1.DeleteToolRequest\x1a .nodeforge.v1.DeleteToolResponse2\x88\x02\n" +
+	"DeleteTool\x12\x1f.nodevault.v1.DeleteToolRequest\x1a .nodevault.v1.DeleteToolResponse2\x88\x02\n" +
 	"\x13DataRegistryService\x12U\n" +
-	"\fRegisterData\x12!.nodeforge.v1.DataRegisterRequest\x1a\".nodeforge.v1.DataRegisterResponse\x12O\n" +
-	"\aGetData\x12\x1c.nodeforge.v1.GetDataRequest\x1a&.nodeforge.v1.RegisteredDataDefinition\x12I\n" +
-	"\bListData\x12\x1d.nodeforge.v1.ListDataRequest\x1a\x1e.nodeforge.v1.ListDataResponse2L\n" +
+	"\fRegisterData\x12!.nodevault.v1.DataRegisterRequest\x1a\".nodevault.v1.DataRegisterResponse\x12O\n" +
+	"\aGetData\x12\x1c.nodevault.v1.GetDataRequest\x1a&.nodevault.v1.RegisteredDataDefinition\x12I\n" +
+	"\bListData\x12\x1d.nodevault.v1.ListDataRequest\x1a\x1e.nodevault.v1.ListDataResponse2L\n" +
 	"\vPingService\x12=\n" +
-	"\x04Ping\x12\x19.nodeforge.v1.PingRequest\x1a\x1a.nodeforge.v1.PingResponseB@Z>github.com/HeaInSeo/NodeVault/protos/nodeforge/v1;nodeforgesv1b\x06proto3"
+	"\x04Ping\x12\x19.nodevault.v1.PingRequest\x1a\x1a.nodevault.v1.PingResponseB?Z=github.com/HeaInSeo/NodeVault/protos/nodevault/v1;nodevaultv1b\x06proto3"
 
 var (
-	file_nodeforge_v1_nodeforge_proto_rawDescOnce sync.Once
-	file_nodeforge_v1_nodeforge_proto_rawDescData []byte
+	file_nodevault_proto_rawDescOnce sync.Once
+	file_nodevault_proto_rawDescData []byte
 )
 
-func file_nodeforge_v1_nodeforge_proto_rawDescGZIP() []byte {
-	file_nodeforge_v1_nodeforge_proto_rawDescOnce.Do(func() {
-		file_nodeforge_v1_nodeforge_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_nodeforge_v1_nodeforge_proto_rawDesc), len(file_nodeforge_v1_nodeforge_proto_rawDesc)))
+func file_nodevault_proto_rawDescGZIP() []byte {
+	file_nodevault_proto_rawDescOnce.Do(func() {
+		file_nodevault_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_nodevault_proto_rawDesc), len(file_nodevault_proto_rawDesc)))
 	})
-	return file_nodeforge_v1_nodeforge_proto_rawDescData
+	return file_nodevault_proto_rawDescData
 }
 
-var file_nodeforge_v1_nodeforge_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_nodeforge_v1_nodeforge_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
-var file_nodeforge_v1_nodeforge_proto_goTypes = []any{
-	(BuildEventKind)(0),              // 0: nodeforge.v1.BuildEventKind
-	(*PortSpec)(nil),                 // 1: nodeforge.v1.PortSpec
-	(*DisplaySpec)(nil),              // 2: nodeforge.v1.DisplaySpec
-	(*ValidationStatus)(nil),         // 3: nodeforge.v1.ValidationStatus
-	(*GetPolicyBundleRequest)(nil),   // 4: nodeforge.v1.GetPolicyBundleRequest
-	(*PolicyBundle)(nil),             // 5: nodeforge.v1.PolicyBundle
-	(*ListPoliciesRequest)(nil),      // 6: nodeforge.v1.ListPoliciesRequest
-	(*PolicyInfo)(nil),               // 7: nodeforge.v1.PolicyInfo
-	(*ListPoliciesResponse)(nil),     // 8: nodeforge.v1.ListPoliciesResponse
-	(*BuildRequest)(nil),             // 9: nodeforge.v1.BuildRequest
-	(*BuildEvent)(nil),               // 10: nodeforge.v1.BuildEvent
-	(*DryRunRequest)(nil),            // 11: nodeforge.v1.DryRunRequest
-	(*DryRunResult)(nil),             // 12: nodeforge.v1.DryRunResult
-	(*SmokeRunRequest)(nil),          // 13: nodeforge.v1.SmokeRunRequest
-	(*SmokeRunResult)(nil),           // 14: nodeforge.v1.SmokeRunResult
-	(*RegisterToolRequest)(nil),      // 15: nodeforge.v1.RegisterToolRequest
-	(*RegisterToolResponse)(nil),     // 16: nodeforge.v1.RegisterToolResponse
-	(*GetToolRequest)(nil),           // 17: nodeforge.v1.GetToolRequest
-	(*ListToolsRequest)(nil),         // 18: nodeforge.v1.ListToolsRequest
-	(*ListToolsResponse)(nil),        // 19: nodeforge.v1.ListToolsResponse
-	(*RegisteredToolDefinition)(nil), // 20: nodeforge.v1.RegisteredToolDefinition
-	(*RetractToolRequest)(nil),       // 21: nodeforge.v1.RetractToolRequest
-	(*RetractToolResponse)(nil),      // 22: nodeforge.v1.RetractToolResponse
-	(*DeleteToolRequest)(nil),        // 23: nodeforge.v1.DeleteToolRequest
-	(*DeleteToolResponse)(nil),       // 24: nodeforge.v1.DeleteToolResponse
-	(*DataRegisterRequest)(nil),      // 25: nodeforge.v1.DataRegisterRequest
-	(*DataRegisterResponse)(nil),     // 26: nodeforge.v1.DataRegisterResponse
-	(*GetDataRequest)(nil),           // 27: nodeforge.v1.GetDataRequest
-	(*ListDataRequest)(nil),          // 28: nodeforge.v1.ListDataRequest
-	(*ListDataResponse)(nil),         // 29: nodeforge.v1.ListDataResponse
-	(*RegisteredDataDefinition)(nil), // 30: nodeforge.v1.RegisteredDataDefinition
-	(*PingRequest)(nil),              // 31: nodeforge.v1.PingRequest
-	(*PingResponse)(nil),             // 32: nodeforge.v1.PingResponse
-	nil,                              // 33: nodeforge.v1.PortSpec.ConstraintsEntry
+var file_nodevault_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_nodevault_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_nodevault_proto_goTypes = []any{
+	(BuildEventKind)(0),              // 0: nodevault.v1.BuildEventKind
+	(*PortSpec)(nil),                 // 1: nodevault.v1.PortSpec
+	(*DisplaySpec)(nil),              // 2: nodevault.v1.DisplaySpec
+	(*ValidationStatus)(nil),         // 3: nodevault.v1.ValidationStatus
+	(*GetPolicyBundleRequest)(nil),   // 4: nodevault.v1.GetPolicyBundleRequest
+	(*PolicyBundle)(nil),             // 5: nodevault.v1.PolicyBundle
+	(*ListPoliciesRequest)(nil),      // 6: nodevault.v1.ListPoliciesRequest
+	(*PolicyInfo)(nil),               // 7: nodevault.v1.PolicyInfo
+	(*ListPoliciesResponse)(nil),     // 8: nodevault.v1.ListPoliciesResponse
+	(*BuildRequest)(nil),             // 9: nodevault.v1.BuildRequest
+	(*BuildEvent)(nil),               // 10: nodevault.v1.BuildEvent
+	(*DryRunRequest)(nil),            // 11: nodevault.v1.DryRunRequest
+	(*DryRunResult)(nil),             // 12: nodevault.v1.DryRunResult
+	(*SmokeRunRequest)(nil),          // 13: nodevault.v1.SmokeRunRequest
+	(*SmokeRunResult)(nil),           // 14: nodevault.v1.SmokeRunResult
+	(*RegisterToolRequest)(nil),      // 15: nodevault.v1.RegisterToolRequest
+	(*RegisterToolResponse)(nil),     // 16: nodevault.v1.RegisterToolResponse
+	(*GetToolRequest)(nil),           // 17: nodevault.v1.GetToolRequest
+	(*ListToolsRequest)(nil),         // 18: nodevault.v1.ListToolsRequest
+	(*ListToolsResponse)(nil),        // 19: nodevault.v1.ListToolsResponse
+	(*RegisteredToolDefinition)(nil), // 20: nodevault.v1.RegisteredToolDefinition
+	(*RetractToolRequest)(nil),       // 21: nodevault.v1.RetractToolRequest
+	(*RetractToolResponse)(nil),      // 22: nodevault.v1.RetractToolResponse
+	(*DeleteToolRequest)(nil),        // 23: nodevault.v1.DeleteToolRequest
+	(*DeleteToolResponse)(nil),       // 24: nodevault.v1.DeleteToolResponse
+	(*DataRegisterRequest)(nil),      // 25: nodevault.v1.DataRegisterRequest
+	(*DataRegisterResponse)(nil),     // 26: nodevault.v1.DataRegisterResponse
+	(*GetDataRequest)(nil),           // 27: nodevault.v1.GetDataRequest
+	(*ListDataRequest)(nil),          // 28: nodevault.v1.ListDataRequest
+	(*ListDataResponse)(nil),         // 29: nodevault.v1.ListDataResponse
+	(*RegisteredDataDefinition)(nil), // 30: nodevault.v1.RegisteredDataDefinition
+	(*PingRequest)(nil),              // 31: nodevault.v1.PingRequest
+	(*PingResponse)(nil),             // 32: nodevault.v1.PingResponse
+	nil,                              // 33: nodevault.v1.PortSpec.ConstraintsEntry
 }
-var file_nodeforge_v1_nodeforge_proto_depIdxs = []int32{
-	33, // 0: nodeforge.v1.PortSpec.constraints:type_name -> nodeforge.v1.PortSpec.ConstraintsEntry
-	7,  // 1: nodeforge.v1.ListPoliciesResponse.policies:type_name -> nodeforge.v1.PolicyInfo
-	1,  // 2: nodeforge.v1.BuildRequest.inputs:type_name -> nodeforge.v1.PortSpec
-	1,  // 3: nodeforge.v1.BuildRequest.outputs:type_name -> nodeforge.v1.PortSpec
-	2,  // 4: nodeforge.v1.BuildRequest.display:type_name -> nodeforge.v1.DisplaySpec
-	0,  // 5: nodeforge.v1.BuildEvent.kind:type_name -> nodeforge.v1.BuildEventKind
-	1,  // 6: nodeforge.v1.RegisterToolRequest.inputs:type_name -> nodeforge.v1.PortSpec
-	1,  // 7: nodeforge.v1.RegisterToolRequest.outputs:type_name -> nodeforge.v1.PortSpec
-	2,  // 8: nodeforge.v1.RegisterToolRequest.display:type_name -> nodeforge.v1.DisplaySpec
-	20, // 9: nodeforge.v1.RegisterToolResponse.tool:type_name -> nodeforge.v1.RegisteredToolDefinition
-	20, // 10: nodeforge.v1.ListToolsResponse.tools:type_name -> nodeforge.v1.RegisteredToolDefinition
-	1,  // 11: nodeforge.v1.RegisteredToolDefinition.inputs:type_name -> nodeforge.v1.PortSpec
-	1,  // 12: nodeforge.v1.RegisteredToolDefinition.outputs:type_name -> nodeforge.v1.PortSpec
-	2,  // 13: nodeforge.v1.RegisteredToolDefinition.display:type_name -> nodeforge.v1.DisplaySpec
-	3,  // 14: nodeforge.v1.RegisteredToolDefinition.validation:type_name -> nodeforge.v1.ValidationStatus
-	2,  // 15: nodeforge.v1.DataRegisterRequest.display:type_name -> nodeforge.v1.DisplaySpec
-	30, // 16: nodeforge.v1.DataRegisterResponse.data:type_name -> nodeforge.v1.RegisteredDataDefinition
-	30, // 17: nodeforge.v1.ListDataResponse.data:type_name -> nodeforge.v1.RegisteredDataDefinition
-	2,  // 18: nodeforge.v1.RegisteredDataDefinition.display:type_name -> nodeforge.v1.DisplaySpec
-	4,  // 19: nodeforge.v1.PolicyService.GetPolicyBundle:input_type -> nodeforge.v1.GetPolicyBundleRequest
-	6,  // 20: nodeforge.v1.PolicyService.ListPolicies:input_type -> nodeforge.v1.ListPoliciesRequest
-	9,  // 21: nodeforge.v1.BuildService.BuildAndRegister:input_type -> nodeforge.v1.BuildRequest
-	11, // 22: nodeforge.v1.ValidateService.DryRun:input_type -> nodeforge.v1.DryRunRequest
-	13, // 23: nodeforge.v1.ValidateService.SmokeRun:input_type -> nodeforge.v1.SmokeRunRequest
-	15, // 24: nodeforge.v1.ToolRegistryService.RegisterTool:input_type -> nodeforge.v1.RegisterToolRequest
-	17, // 25: nodeforge.v1.ToolRegistryService.GetTool:input_type -> nodeforge.v1.GetToolRequest
-	18, // 26: nodeforge.v1.ToolRegistryService.ListTools:input_type -> nodeforge.v1.ListToolsRequest
-	21, // 27: nodeforge.v1.ToolRegistryService.RetractTool:input_type -> nodeforge.v1.RetractToolRequest
-	23, // 28: nodeforge.v1.ToolRegistryService.DeleteTool:input_type -> nodeforge.v1.DeleteToolRequest
-	25, // 29: nodeforge.v1.DataRegistryService.RegisterData:input_type -> nodeforge.v1.DataRegisterRequest
-	27, // 30: nodeforge.v1.DataRegistryService.GetData:input_type -> nodeforge.v1.GetDataRequest
-	28, // 31: nodeforge.v1.DataRegistryService.ListData:input_type -> nodeforge.v1.ListDataRequest
-	31, // 32: nodeforge.v1.PingService.Ping:input_type -> nodeforge.v1.PingRequest
-	5,  // 33: nodeforge.v1.PolicyService.GetPolicyBundle:output_type -> nodeforge.v1.PolicyBundle
-	8,  // 34: nodeforge.v1.PolicyService.ListPolicies:output_type -> nodeforge.v1.ListPoliciesResponse
-	10, // 35: nodeforge.v1.BuildService.BuildAndRegister:output_type -> nodeforge.v1.BuildEvent
-	12, // 36: nodeforge.v1.ValidateService.DryRun:output_type -> nodeforge.v1.DryRunResult
-	14, // 37: nodeforge.v1.ValidateService.SmokeRun:output_type -> nodeforge.v1.SmokeRunResult
-	16, // 38: nodeforge.v1.ToolRegistryService.RegisterTool:output_type -> nodeforge.v1.RegisterToolResponse
-	20, // 39: nodeforge.v1.ToolRegistryService.GetTool:output_type -> nodeforge.v1.RegisteredToolDefinition
-	19, // 40: nodeforge.v1.ToolRegistryService.ListTools:output_type -> nodeforge.v1.ListToolsResponse
-	22, // 41: nodeforge.v1.ToolRegistryService.RetractTool:output_type -> nodeforge.v1.RetractToolResponse
-	24, // 42: nodeforge.v1.ToolRegistryService.DeleteTool:output_type -> nodeforge.v1.DeleteToolResponse
-	26, // 43: nodeforge.v1.DataRegistryService.RegisterData:output_type -> nodeforge.v1.DataRegisterResponse
-	30, // 44: nodeforge.v1.DataRegistryService.GetData:output_type -> nodeforge.v1.RegisteredDataDefinition
-	29, // 45: nodeforge.v1.DataRegistryService.ListData:output_type -> nodeforge.v1.ListDataResponse
-	32, // 46: nodeforge.v1.PingService.Ping:output_type -> nodeforge.v1.PingResponse
+var file_nodevault_proto_depIdxs = []int32{
+	33, // 0: nodevault.v1.PortSpec.constraints:type_name -> nodevault.v1.PortSpec.ConstraintsEntry
+	7,  // 1: nodevault.v1.ListPoliciesResponse.policies:type_name -> nodevault.v1.PolicyInfo
+	1,  // 2: nodevault.v1.BuildRequest.inputs:type_name -> nodevault.v1.PortSpec
+	1,  // 3: nodevault.v1.BuildRequest.outputs:type_name -> nodevault.v1.PortSpec
+	2,  // 4: nodevault.v1.BuildRequest.display:type_name -> nodevault.v1.DisplaySpec
+	0,  // 5: nodevault.v1.BuildEvent.kind:type_name -> nodevault.v1.BuildEventKind
+	1,  // 6: nodevault.v1.RegisterToolRequest.inputs:type_name -> nodevault.v1.PortSpec
+	1,  // 7: nodevault.v1.RegisterToolRequest.outputs:type_name -> nodevault.v1.PortSpec
+	2,  // 8: nodevault.v1.RegisterToolRequest.display:type_name -> nodevault.v1.DisplaySpec
+	20, // 9: nodevault.v1.RegisterToolResponse.tool:type_name -> nodevault.v1.RegisteredToolDefinition
+	20, // 10: nodevault.v1.ListToolsResponse.tools:type_name -> nodevault.v1.RegisteredToolDefinition
+	1,  // 11: nodevault.v1.RegisteredToolDefinition.inputs:type_name -> nodevault.v1.PortSpec
+	1,  // 12: nodevault.v1.RegisteredToolDefinition.outputs:type_name -> nodevault.v1.PortSpec
+	2,  // 13: nodevault.v1.RegisteredToolDefinition.display:type_name -> nodevault.v1.DisplaySpec
+	3,  // 14: nodevault.v1.RegisteredToolDefinition.validation:type_name -> nodevault.v1.ValidationStatus
+	2,  // 15: nodevault.v1.DataRegisterRequest.display:type_name -> nodevault.v1.DisplaySpec
+	30, // 16: nodevault.v1.DataRegisterResponse.data:type_name -> nodevault.v1.RegisteredDataDefinition
+	30, // 17: nodevault.v1.ListDataResponse.data:type_name -> nodevault.v1.RegisteredDataDefinition
+	2,  // 18: nodevault.v1.RegisteredDataDefinition.display:type_name -> nodevault.v1.DisplaySpec
+	4,  // 19: nodevault.v1.PolicyService.GetPolicyBundle:input_type -> nodevault.v1.GetPolicyBundleRequest
+	6,  // 20: nodevault.v1.PolicyService.ListPolicies:input_type -> nodevault.v1.ListPoliciesRequest
+	9,  // 21: nodevault.v1.BuildService.BuildAndRegister:input_type -> nodevault.v1.BuildRequest
+	11, // 22: nodevault.v1.ValidateService.DryRun:input_type -> nodevault.v1.DryRunRequest
+	13, // 23: nodevault.v1.ValidateService.SmokeRun:input_type -> nodevault.v1.SmokeRunRequest
+	15, // 24: nodevault.v1.ToolRegistryService.RegisterTool:input_type -> nodevault.v1.RegisterToolRequest
+	17, // 25: nodevault.v1.ToolRegistryService.GetTool:input_type -> nodevault.v1.GetToolRequest
+	18, // 26: nodevault.v1.ToolRegistryService.ListTools:input_type -> nodevault.v1.ListToolsRequest
+	21, // 27: nodevault.v1.ToolRegistryService.RetractTool:input_type -> nodevault.v1.RetractToolRequest
+	23, // 28: nodevault.v1.ToolRegistryService.DeleteTool:input_type -> nodevault.v1.DeleteToolRequest
+	25, // 29: nodevault.v1.DataRegistryService.RegisterData:input_type -> nodevault.v1.DataRegisterRequest
+	27, // 30: nodevault.v1.DataRegistryService.GetData:input_type -> nodevault.v1.GetDataRequest
+	28, // 31: nodevault.v1.DataRegistryService.ListData:input_type -> nodevault.v1.ListDataRequest
+	31, // 32: nodevault.v1.PingService.Ping:input_type -> nodevault.v1.PingRequest
+	5,  // 33: nodevault.v1.PolicyService.GetPolicyBundle:output_type -> nodevault.v1.PolicyBundle
+	8,  // 34: nodevault.v1.PolicyService.ListPolicies:output_type -> nodevault.v1.ListPoliciesResponse
+	10, // 35: nodevault.v1.BuildService.BuildAndRegister:output_type -> nodevault.v1.BuildEvent
+	12, // 36: nodevault.v1.ValidateService.DryRun:output_type -> nodevault.v1.DryRunResult
+	14, // 37: nodevault.v1.ValidateService.SmokeRun:output_type -> nodevault.v1.SmokeRunResult
+	16, // 38: nodevault.v1.ToolRegistryService.RegisterTool:output_type -> nodevault.v1.RegisterToolResponse
+	20, // 39: nodevault.v1.ToolRegistryService.GetTool:output_type -> nodevault.v1.RegisteredToolDefinition
+	19, // 40: nodevault.v1.ToolRegistryService.ListTools:output_type -> nodevault.v1.ListToolsResponse
+	22, // 41: nodevault.v1.ToolRegistryService.RetractTool:output_type -> nodevault.v1.RetractToolResponse
+	24, // 42: nodevault.v1.ToolRegistryService.DeleteTool:output_type -> nodevault.v1.DeleteToolResponse
+	26, // 43: nodevault.v1.DataRegistryService.RegisterData:output_type -> nodevault.v1.DataRegisterResponse
+	30, // 44: nodevault.v1.DataRegistryService.GetData:output_type -> nodevault.v1.RegisteredDataDefinition
+	29, // 45: nodevault.v1.DataRegistryService.ListData:output_type -> nodevault.v1.ListDataResponse
+	32, // 46: nodevault.v1.PingService.Ping:output_type -> nodevault.v1.PingResponse
 	33, // [33:47] is the sub-list for method output_type
 	19, // [19:33] is the sub-list for method input_type
 	19, // [19:19] is the sub-list for extension type_name
@@ -2537,27 +2537,27 @@ var file_nodeforge_v1_nodeforge_proto_depIdxs = []int32{
 	0,  // [0:19] is the sub-list for field type_name
 }
 
-func init() { file_nodeforge_v1_nodeforge_proto_init() }
-func file_nodeforge_v1_nodeforge_proto_init() {
-	if File_nodeforge_v1_nodeforge_proto != nil {
+func init() { file_nodevault_proto_init() }
+func file_nodevault_proto_init() {
+	if File_nodevault_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_nodeforge_v1_nodeforge_proto_rawDesc), len(file_nodeforge_v1_nodeforge_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_nodevault_proto_rawDesc), len(file_nodevault_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   6,
 		},
-		GoTypes:           file_nodeforge_v1_nodeforge_proto_goTypes,
-		DependencyIndexes: file_nodeforge_v1_nodeforge_proto_depIdxs,
-		EnumInfos:         file_nodeforge_v1_nodeforge_proto_enumTypes,
-		MessageInfos:      file_nodeforge_v1_nodeforge_proto_msgTypes,
+		GoTypes:           file_nodevault_proto_goTypes,
+		DependencyIndexes: file_nodevault_proto_depIdxs,
+		EnumInfos:         file_nodevault_proto_enumTypes,
+		MessageInfos:      file_nodevault_proto_msgTypes,
 	}.Build()
-	File_nodeforge_v1_nodeforge_proto = out.File
-	file_nodeforge_v1_nodeforge_proto_goTypes = nil
-	file_nodeforge_v1_nodeforge_proto_depIdxs = nil
+	File_nodevault_proto = out.File
+	file_nodevault_proto_goTypes = nil
+	file_nodevault_proto_depIdxs = nil
 }

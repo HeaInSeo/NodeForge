@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package nodeforge.v1;
+package nodevault.v1;
 
-option go_package = "github.com/HeaInSeo/NodeForge/protos/nodeforge/v1;nodeforgesv1";
+option go_package = "github.com/HeaInSeo/NodeVault/protos/nodevault/v1;nodevaultv1";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 공통 스펙 메시지 (RegisteredTool v0.2)

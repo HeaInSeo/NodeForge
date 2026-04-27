@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v7.34.1
-// source: nodeforge/v1/nodeforge.proto
+// source: nodevault.proto
 
-package nodeforgesv1
+package nodevaultv1
 
 import (
 	context "context"
@@ -19,8 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PolicyService_GetPolicyBundle_FullMethodName = "/nodeforge.v1.PolicyService/GetPolicyBundle"
-	PolicyService_ListPolicies_FullMethodName    = "/nodeforge.v1.PolicyService/ListPolicies"
+	PolicyService_GetPolicyBundle_FullMethodName = "/nodevault.v1.PolicyService/GetPolicyBundle"
+	PolicyService_ListPolicies_FullMethodName    = "/nodevault.v1.PolicyService/ListPolicies"
 )
 
 // PolicyServiceClient is the client API for PolicyService service.
@@ -142,7 +142,7 @@ func _PolicyService_ListPolicies_Handler(srv interface{}, ctx context.Context, d
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var PolicyService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "nodeforge.v1.PolicyService",
+	ServiceName: "nodevault.v1.PolicyService",
 	HandlerType: (*PolicyServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -155,11 +155,11 @@ var PolicyService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "nodeforge/v1/nodeforge.proto",
+	Metadata: "nodevault.proto",
 }
 
 const (
-	BuildService_BuildAndRegister_FullMethodName = "/nodeforge.v1.BuildService/BuildAndRegister"
+	BuildService_BuildAndRegister_FullMethodName = "/nodevault.v1.BuildService/BuildAndRegister"
 )
 
 // BuildServiceClient is the client API for BuildService service.
@@ -250,7 +250,7 @@ type BuildService_BuildAndRegisterServer = grpc.ServerStreamingServer[BuildEvent
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var BuildService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "nodeforge.v1.BuildService",
+	ServiceName: "nodevault.v1.BuildService",
 	HandlerType: (*BuildServiceServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
@@ -260,12 +260,12 @@ var BuildService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "nodeforge/v1/nodeforge.proto",
+	Metadata: "nodevault.proto",
 }
 
 const (
-	ValidateService_DryRun_FullMethodName   = "/nodeforge.v1.ValidateService/DryRun"
-	ValidateService_SmokeRun_FullMethodName = "/nodeforge.v1.ValidateService/SmokeRun"
+	ValidateService_DryRun_FullMethodName   = "/nodevault.v1.ValidateService/DryRun"
+	ValidateService_SmokeRun_FullMethodName = "/nodevault.v1.ValidateService/SmokeRun"
 )
 
 // ValidateServiceClient is the client API for ValidateService service.
@@ -387,7 +387,7 @@ func _ValidateService_SmokeRun_Handler(srv interface{}, ctx context.Context, dec
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var ValidateService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "nodeforge.v1.ValidateService",
+	ServiceName: "nodevault.v1.ValidateService",
 	HandlerType: (*ValidateServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -400,15 +400,15 @@ var ValidateService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "nodeforge/v1/nodeforge.proto",
+	Metadata: "nodevault.proto",
 }
 
 const (
-	ToolRegistryService_RegisterTool_FullMethodName = "/nodeforge.v1.ToolRegistryService/RegisterTool"
-	ToolRegistryService_GetTool_FullMethodName      = "/nodeforge.v1.ToolRegistryService/GetTool"
-	ToolRegistryService_ListTools_FullMethodName    = "/nodeforge.v1.ToolRegistryService/ListTools"
-	ToolRegistryService_RetractTool_FullMethodName  = "/nodeforge.v1.ToolRegistryService/RetractTool"
-	ToolRegistryService_DeleteTool_FullMethodName   = "/nodeforge.v1.ToolRegistryService/DeleteTool"
+	ToolRegistryService_RegisterTool_FullMethodName = "/nodevault.v1.ToolRegistryService/RegisterTool"
+	ToolRegistryService_GetTool_FullMethodName      = "/nodevault.v1.ToolRegistryService/GetTool"
+	ToolRegistryService_ListTools_FullMethodName    = "/nodevault.v1.ToolRegistryService/ListTools"
+	ToolRegistryService_RetractTool_FullMethodName  = "/nodevault.v1.ToolRegistryService/RetractTool"
+	ToolRegistryService_DeleteTool_FullMethodName   = "/nodevault.v1.ToolRegistryService/DeleteTool"
 )
 
 // ToolRegistryServiceClient is the client API for ToolRegistryService service.
@@ -629,7 +629,7 @@ func _ToolRegistryService_DeleteTool_Handler(srv interface{}, ctx context.Contex
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var ToolRegistryService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "nodeforge.v1.ToolRegistryService",
+	ServiceName: "nodevault.v1.ToolRegistryService",
 	HandlerType: (*ToolRegistryServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -654,13 +654,13 @@ var ToolRegistryService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "nodeforge/v1/nodeforge.proto",
+	Metadata: "nodevault.proto",
 }
 
 const (
-	DataRegistryService_RegisterData_FullMethodName = "/nodeforge.v1.DataRegistryService/RegisterData"
-	DataRegistryService_GetData_FullMethodName      = "/nodeforge.v1.DataRegistryService/GetData"
-	DataRegistryService_ListData_FullMethodName     = "/nodeforge.v1.DataRegistryService/ListData"
+	DataRegistryService_RegisterData_FullMethodName = "/nodevault.v1.DataRegistryService/RegisterData"
+	DataRegistryService_GetData_FullMethodName      = "/nodevault.v1.DataRegistryService/GetData"
+	DataRegistryService_ListData_FullMethodName     = "/nodevault.v1.DataRegistryService/ListData"
 )
 
 // DataRegistryServiceClient is the client API for DataRegistryService service.
@@ -815,7 +815,7 @@ func _DataRegistryService_ListData_Handler(srv interface{}, ctx context.Context,
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var DataRegistryService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "nodeforge.v1.DataRegistryService",
+	ServiceName: "nodevault.v1.DataRegistryService",
 	HandlerType: (*DataRegistryServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -832,11 +832,11 @@ var DataRegistryService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "nodeforge/v1/nodeforge.proto",
+	Metadata: "nodevault.proto",
 }
 
 const (
-	PingService_Ping_FullMethodName = "/nodeforge.v1.PingService/Ping"
+	PingService_Ping_FullMethodName = "/nodevault.v1.PingService/Ping"
 )
 
 // PingServiceClient is the client API for PingService service.
@@ -925,7 +925,7 @@ func _PingService_Ping_Handler(srv interface{}, ctx context.Context, dec func(in
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var PingService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "nodeforge.v1.PingService",
+	ServiceName: "nodevault.v1.PingService",
 	HandlerType: (*PingServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -934,5 +934,5 @@ var PingService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "nodeforge/v1/nodeforge.proto",
+	Metadata: "nodevault.proto",
 }
