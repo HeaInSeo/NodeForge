@@ -43,18 +43,24 @@ REMOTE_SETUP
 if [[ "$RESTART_ONLY" == "true" ]]; then
   echo "==> --restart-only: 바이너리 복사 생략"
 else
-  # ── 2. 바이너리 복사 ───────────────────────────────────────────────────────
+  # ── 2. 바이너리 복사 (/tmp 경유 → sudo mv) ────────────────────────────────
+  # /opt/nodevault/bin/ 은 nodevault 소유 → seoy 유저가 직접 쓸 수 없으므로
+  # /tmp에 먼저 올린 뒤 sudo mv 로 이동한다.
   echo "==> 바이너리 복사..."
-  $SCP_BASE "${LOCAL_BIN}/nodevault"    "${SEOY_USER}@${SEOY_HOST}:${REMOTE_DIR}/bin/nodevault"
-  $SCP_BASE "${LOCAL_BIN}/nodepalette"  "${SEOY_USER}@${SEOY_HOST}:${REMOTE_DIR}/bin/nodepalette"
-  $SSH "sudo chown nodevault:nodevault ${REMOTE_DIR}/bin/nodevault ${REMOTE_DIR}/bin/nodepalette && sudo chmod +x ${REMOTE_DIR}/bin/nodevault ${REMOTE_DIR}/bin/nodepalette"
+  $SCP_BASE "${LOCAL_BIN}/nodevault"   "${SEOY_USER}@${SEOY_HOST}:/tmp/nodevault"
+  $SCP_BASE "${LOCAL_BIN}/nodepalette" "${SEOY_USER}@${SEOY_HOST}:/tmp/nodepalette"
+  $SSH "sudo mv /tmp/nodevault   ${REMOTE_DIR}/bin/nodevault && \
+        sudo mv /tmp/nodepalette ${REMOTE_DIR}/bin/nodepalette && \
+        sudo chown nodevault:nodevault ${REMOTE_DIR}/bin/nodevault ${REMOTE_DIR}/bin/nodepalette && \
+        sudo chmod +x ${REMOTE_DIR}/bin/nodevault ${REMOTE_DIR}/bin/nodepalette"
 
   # ── 3. policy wasm 복사 (있는 경우) ───────────────────────────────────────
   if [[ -f "${LOCAL_ASSETS}/policy/dockguard.wasm" ]]; then
     echo "==> policy wasm 복사..."
     $SCP_BASE "${LOCAL_ASSETS}/policy/dockguard.wasm" \
-      "${SEOY_USER}@${SEOY_HOST}:${REMOTE_DIR}/assets/policy/dockguard.wasm"
-    $SSH "sudo chown nodevault:nodevault ${REMOTE_DIR}/assets/policy/dockguard.wasm"
+      "${SEOY_USER}@${SEOY_HOST}:/tmp/dockguard.wasm"
+    $SSH "sudo mv /tmp/dockguard.wasm ${REMOTE_DIR}/assets/policy/dockguard.wasm && \
+          sudo chown nodevault:nodevault ${REMOTE_DIR}/assets/policy/dockguard.wasm"
   else
     echo "==> assets/policy/dockguard.wasm 없음 — 건너뜀"
   fi
