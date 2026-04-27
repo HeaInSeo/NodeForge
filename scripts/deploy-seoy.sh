@@ -14,7 +14,7 @@
 set -euo pipefail
 
 SEOY_HOST="${SEOY_HOST:-100.123.80.48}"
-SEOY_USER="${SEOY_USER:-heain}"
+SEOY_USER="${SEOY_USER:-seoy}"
 REMOTE_DIR="/opt/nodevault"
 LOCAL_BIN="$(dirname "$0")/../bin"
 LOCAL_DEPLOY="$(dirname "$0")/../deploy"
