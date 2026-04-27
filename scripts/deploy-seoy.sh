@@ -79,14 +79,26 @@ echo "==> 서비스 재시작..."
 $SSH "sudo systemctl enable nodevault nodepalette && \
       sudo systemctl restart nodevault nodepalette"
 
-# ── 6. 기동 확인 ─────────────────────────────────────────────────────────────
-echo "==> 서비스 상태 확인 (5초 대기)..."
-sleep 5
-$SSH "sudo systemctl is-active nodevault nodepalette && \
-      echo '--- nodevault log (last 10 lines) ---' && \
-      sudo journalctl -u nodevault -n 10 --no-pager && \
-      echo '--- nodepalette log (last 10 lines) ---' && \
-      sudo journalctl -u nodepalette -n 10 --no-pager"
+# ── 6. 기동 확인 (최대 30초 대기) ───────────────────────────────────────────
+echo "==> 서비스 기동 대기 (최대 30초)..."
+for i in $(seq 1 6); do
+  sleep 5
+  STATUS=$($SSH "sudo systemctl is-active nodevault 2>/dev/null || true")
+  echo "    [${i}/6] nodevault: ${STATUS}"
+  if [[ "$STATUS" == "active" ]]; then
+    break
+  fi
+done
+
+echo ""
+echo "--- nodevault 상태 ---"
+$SSH "sudo systemctl status nodevault --no-pager -l || true"
+echo ""
+echo "--- nodevault log (last 20 lines) ---"
+$SSH "sudo journalctl -u nodevault -n 20 --no-pager || true"
+echo ""
+echo "--- nodepalette log (last 10 lines) ---"
+$SSH "sudo journalctl -u nodepalette -n 10 --no-pager || true"
 
 echo ""
 echo "✅ 배포 완료"
