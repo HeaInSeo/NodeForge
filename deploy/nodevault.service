@@ -1,0 +1,49 @@
+[Unit]
+Description=NodeVault Control Plane (gRPC :50051 + webhook :8082)
+Documentation=https://github.com/HeaInSeo/NodeVault
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nodevault
+Group=nodevault
+WorkingDirectory=/opt/nodevault
+
+# ── 바이너리 ─────────────────────────────────────────────────────────────────
+ExecStart=/opt/nodevault/bin/nodevault
+
+# ── 포트 설정 ─────────────────────────────────────────────────────────────────
+Environment=NODEVAULT_ADDR=:50051
+Environment=NODEVAULT_WEBHOOK_ADDR=:8082
+
+# ── K8s 클러스터 연결 (L3 dry-run / L4 smoke run 필요) ────────────────────────
+Environment=KUBECONFIG=/opt/nodevault/kubeconfig
+
+# ── Harbor 레지스트리 주소 ────────────────────────────────────────────────────
+Environment=NODEVAULT_REGISTRY_ADDR=harbor.10.113.24.96.nip.io
+
+# ── reconcile 간격 (기본: fast=5m, slow=30m / 테스트 시 단축 가능) ──────────
+Environment=NODEVAULT_FAST_RECONCILE=30s
+Environment=NODEVAULT_SLOW_RECONCILE=10m
+
+# ── podbridge5 rootless 컨테이너 빌드 스토리지 ───────────────────────────────
+# ReexecIfNeeded() 호출을 위해 XDG_RUNTIME_DIR 설정 필요
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+
+# ── assets/ 경로 (index, catalog, policy) ────────────────────────────────────
+Environment=INDEX_DIR=/opt/nodevault/assets/index
+Environment=CATALOG_DIR=/opt/nodevault/assets/catalog
+Environment=DATA_CATALOG_DIR=/opt/nodevault/assets/datacatalog
+
+# ── 재시작 정책 ───────────────────────────────────────────────────────────────
+Restart=on-failure
+RestartSec=5s
+
+# ── 로그 ──────────────────────────────────────────────────────────────────────
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nodevault
+
+[Install]
+WantedBy=multi-user.target

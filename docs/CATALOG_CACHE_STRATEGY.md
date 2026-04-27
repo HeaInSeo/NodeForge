@@ -9,7 +9,7 @@
 ## 1. 현재 구조 (단일 프로세스)
 
 ```
-NodeForge 프로세스
+NodeVault 프로세스
 ├── gRPC ToolRegistryService  → index.Store (write)
 ├── Catalog REST Server       → index.Store (read-only)
 └── index.Store               → vault-index.json (OS 파일 I/O)

@@ -38,7 +38,9 @@ type toolSpec struct {
 // Returns the referrer manifest digest on success.
 // A non-nil error means the push failed; the caller should log and continue —
 // integrity_health will remain Partial until the reconcile loop retries.
-func PushToolSpecReferrer(ctx context.Context, imageRepo, subjectDigest string, tool *nfv1.RegisteredToolDefinition) (string, error) {
+func PushToolSpecReferrer(
+	ctx context.Context, imageRepo, subjectDigest string, tool *nfv1.RegisteredToolDefinition,
+) (string, error) {
 	if imageRepo == "" {
 		return "", fmt.Errorf("oras: imageRepo must not be empty")
 	}

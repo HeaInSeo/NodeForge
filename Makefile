@@ -1,6 +1,6 @@
 .PHONY: fmt lint lint-fix lint-config golangci-lint test test-integration test-integration-multipass \
         deploy-multipass undeploy-multipass build push-image vendor \
-        proto coverage clean all
+        proto coverage clean all deploy-seoy
 
 LOCALBIN      ?= $(CURDIR)/bin
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
@@ -163,6 +163,12 @@ coverage:
 # ── 정리 ──────────────────────────────────────────────────────────────────────
 clean:
 	rm -rf bin/ vendor/ coverage.out $(PROTO_OUT)
+
+# ── seoy 호스트 배포 ──────────────────────────────────────────────────────────
+# 바이너리를 빌드하고 seoy(100.123.80.48)에 배포한다.
+# SEOY_USER 환경 변수로 SSH 사용자 지정 가능 (기본: heain)
+deploy-seoy: build
+	bash scripts/deploy-seoy.sh
 
 # ── 전체 (포맷 → 테스트 → 빌드) ──────────────────────────────────────────────
 all: fmt test build

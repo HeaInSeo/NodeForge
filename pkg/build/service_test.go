@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	nfv1 "github.com/HeaInSeo/NodeVault/protos/nodeforge/v1"
 	"google.golang.org/grpc/metadata"
+
+	nfv1 "github.com/HeaInSeo/NodeVault/protos/nodeforge/v1"
 )
 
 // ─── fakeStream — minimal grpc.ServerStreamingServer[nfv1.BuildEvent] mock ───
@@ -33,8 +34,8 @@ func (f *fakeStream) SendHeader(metadata.MD) error {
 	return nil
 }
 func (f *fakeStream) SetTrailer(metadata.MD) { _ = f }
-func (f *fakeStream) SendMsg(any) error      { return nil }
-func (f *fakeStream) RecvMsg(any) error      { return nil }
+func (*fakeStream) SendMsg(any) error        { return nil }
+func (*fakeStream) RecvMsg(any) error        { return nil }
 
 func (f *fakeStream) kindsSent() []nfv1.BuildEventKind {
 	kinds := make([]nfv1.BuildEventKind, 0, len(f.events))

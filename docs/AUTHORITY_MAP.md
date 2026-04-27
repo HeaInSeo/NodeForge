@@ -8,7 +8,7 @@
 
 ## 1. 설계 원칙
 
-**NodeForge build 완료는 trigger일 뿐.**  
+**NodeVault build 완료는 trigger일 뿐.**  
 Index commit 판단과 실행은 NodeVault only.  
 이 경계가 깨지면 lifecycle_phase 변경 authority가 분산된다.
 
@@ -18,8 +18,8 @@ Index commit 판단과 실행은 NodeVault only.
 
 | 작업 | 소유자 | 비고 |
 |------|--------|------|
-| Build Job 실행 | NodeForge (위임) | kaniko/buildah Job 오케스트레이션 |
-| Build 완료 이벤트 | NodeForge → NodeVault | BuildEvent stream (gRPC) |
+| Build Job 실행 | NodeVault (위임) | kaniko/buildah Job 오케스트레이션 |
+| Build 완료 이벤트 | NodeVault → NodeVault | BuildEvent stream (gRPC) |
 | Index commit 판단 | **NodeVault only** | L4 통과 여부 판단 포함 |
 | Index append | **NodeVault only** | `pkg/index.Store.Append()` 호출 |
 | `lifecycle_phase` 변경 | **NodeVault only** | `SetLifecyclePhase()` — 운영 의도 축 |
@@ -32,10 +32,10 @@ Index commit 판단과 실행은 NodeVault only.
 
 ---
 
-## 3. NodeForge → NodeVault 핸드오프 프로토콜
+## 3. NodeVault → NodeVault 핸드오프 프로토콜
 
 ```
-NodeForge                          NodeVault
+NodeVault                          NodeVault
     │                                  │
     │── BuildAndRegister() gRPC ──────▶│
     │                                  │
@@ -58,7 +58,7 @@ NodeForge                          NodeVault
 ```
 
 **핵심**: Build 완료 이벤트(SUCCEEDED) 수신 후 NodeVault가 RegisterTool을 독립적으로 호출한다.  
-NodeForge는 build 파이프라인만 실행하고 index 상태를 직접 변경하지 않는다.
+NodeVault는 build 파이프라인만 실행하고 index 상태를 직접 변경하지 않는다.
 
 ---
 
@@ -109,10 +109,10 @@ Retracted ─[운영자 Delete + Harbor GC]▶ Deleted
 ## 7. 완료 기준 체크리스트 (TODO-09a)
 
 - [x] write authority 범위 문서화
-- [x] NodeForge 하위 책임 경계 명시
+- [x] NodeVault 하위 책임 경계 명시
 - [x] lifecycle_phase 변경 authority 귀속 명시 (NodeVault only)
 - [x] integrity_health 변경 authority 귀속 명시 (reconcile loop)
 - [x] Delete / Retract authority 귀속 명시
 - [x] index mutation authority 귀속 명시
-- [x] NodeForge build 완료 → NodeVault index commit 핸드오프 프로토콜 명시
+- [x] NodeVault build 완료 → NodeVault index commit 핸드오프 프로토콜 명시
 - [x] 결과물: authority map 표 (구두 합의 아님)

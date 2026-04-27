@@ -1,4 +1,4 @@
-# NodeForge/NodeVault 아키텍처 개요
+# NodeVault/NodeVault 아키텍처 개요
 
 버전: 1.0  
 작성일: 2026-04-18  
@@ -16,7 +16,7 @@
 ## 이름 현황 (2026-04-19)
 
 Go 모듈, 바이너리, K8s 리소스, 환경 변수 **모두 NodeVault로 rename 완료**.
-로컬 디렉토리(`NodeForge/`)와 GitHub 저장소 이름은 repo rename 후 반영됨.
+로컬 디렉토리(`NodeVault/`)와 GitHub 저장소 이름은 repo rename 후 반영됨.
 이 문서는 **NodeVault** 이름으로 통일한다.
 
 ---
@@ -89,7 +89,7 @@ NodeVault와 같은 hostvault, assets/ 공유. 요청마다 vault-index.json Rel
 
 ## Write Path — 툴 이미지
 
-NodeKit이 `BuildRequest`를 전송하면 NodeForge가 수행하는 순서:
+NodeKit이 `BuildRequest`를 전송하면 NodeVault가 수행하는 순서:
 
 ```
 1. gRPC 수신 (BuildService.BuildAndRegister)

@@ -117,6 +117,8 @@ func (c *Catalog) Load(casHash string) (*nfv1.RegisteredToolDefinition, error) {
 }
 
 // List reads all *.tooldefinition files and returns the parsed tools.
+//
+//nolint:dupl // Catalog.List and DataCatalog.List are intentionally parallel — same structure, different proto types.
 func (c *Catalog) List() ([]*nfv1.RegisteredToolDefinition, error) {
 	entries, err := os.ReadDir(c.dir)
 	if err != nil {
@@ -194,7 +196,7 @@ func (s *ToolRegistryService) RegisterTool(
 ) (*nfv1.RegisterToolResponse, error) {
 	stableRef := req.StableRef
 	if stableRef == "" && req.ToolName != "" {
-		// NodeForge가 tool_name@version 형태로 조립한다.
+		// NodeVault가 tool_name@version 형태로 조립한다.
 		if req.Version != "" {
 			stableRef = req.ToolName + "@" + req.Version
 		} else {
@@ -236,6 +238,7 @@ func (s *ToolRegistryService) RegisterTool(
 		StableRef:       stableRef,
 		ToolName:        req.ToolName,
 		Version:         req.Version,
+		ImageRef:        req.ImageUri,
 		ImageDigest:     req.Digest,
 		LifecyclePhase:  index.PhaseActive,
 		IntegrityHealth: index.HealthPartial, // Partial until spec referrer is pushed (pkg/oras)
@@ -270,14 +273,14 @@ func (s *ToolRegistryService) ListTools(
 	kind := req.GetArtifactKind()
 
 	tools := make([]*nfv1.RegisteredToolDefinition, 0, len(indexEntries))
-	for _, e := range indexEntries {
-		if kind != "" && string(e.ArtifactKind) != kind {
+	for i := range indexEntries {
+		if kind != "" && string(indexEntries[i].ArtifactKind) != kind {
 			continue
 		}
-		tool, loadErr := s.catalog.Load(e.CasHash)
+		tool, loadErr := s.catalog.Load(indexEntries[i].CasHash)
 		if loadErr != nil {
 			// CAS file missing — log and skip; integrity_health reconcile will catch this.
-			fmt.Fprintf(os.Stderr, "catalog: load %s: %v\n", e.CasHash, loadErr)
+			fmt.Fprintf(os.Stderr, "catalog: load %s: %v\n", indexEntries[i].CasHash, loadErr)
 			continue
 		}
 		tools = append(tools, tool)
@@ -287,6 +290,8 @@ func (s *ToolRegistryService) ListTools(
 
 // GetTool retrieves a single RegisteredToolDefinition by its CAS hash.
 // Uses the index for existence check, then loads the full spec from the CAS catalog.
+//
+//nolint:dupl // GetTool and DataRegistryService.GetData are intentionally parallel — different proto types.
 func (s *ToolRegistryService) GetTool(
 	_ context.Context, req *nfv1.GetToolRequest,
 ) (*nfv1.RegisteredToolDefinition, error) {
@@ -306,6 +311,8 @@ func (s *ToolRegistryService) GetTool(
 // RetractTool transitions lifecycle_phase → Retracted.
 // NodeVault only — not callable by reconcile loop.
 // Retracted artifacts are excluded from Catalog listing (lifecycle_phase != Active).
+//
+//nolint:dupl // RetractTool and DeleteTool are intentionally parallel — same shape, different phases.
 func (s *ToolRegistryService) RetractTool(
 	_ context.Context, req *nfv1.RetractToolRequest,
 ) (*nfv1.RetractToolResponse, error) {
@@ -324,6 +331,8 @@ func (s *ToolRegistryService) RetractTool(
 // DeleteTool transitions lifecycle_phase → Deleted.
 // Retracted → Deleted is the recommended sequence.
 // NodeVault only.
+//
+//nolint:dupl // DeleteTool and RetractTool are intentionally parallel — same shape, different phases.
 func (s *ToolRegistryService) DeleteTool(
 	_ context.Context, req *nfv1.DeleteToolRequest,
 ) (*nfv1.DeleteToolResponse, error) {

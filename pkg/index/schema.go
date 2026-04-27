@@ -55,6 +55,12 @@ type Entry struct {
 	ToolName string `json:"tool_name,omitempty"`
 	Version  string `json:"version,omitempty"`
 
+	// ImageRef is the full image reference as pushed to Harbor.
+	// Format: "{registry_host}/{project}/{repo}:{tag}"
+	// Example: "harbor.10.113.24.96.nip.io/library/bwa:latest"
+	// Used by the reconcile loop to check Harbor existence without reconstructing the reference.
+	ImageRef string `json:"image_ref,omitempty"`
+
 	// ImageDigest is the OCI digest of the built tool image in Harbor.
 	ImageDigest string `json:"image_digest,omitempty"`
 

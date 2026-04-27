@@ -5,6 +5,7 @@
 package build
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -20,6 +21,13 @@ import (
 	"github.com/HeaInSeo/NodeVault/pkg/oras"
 	"github.com/HeaInSeo/NodeVault/pkg/validate"
 )
+
+// ReconcileTriggerer triggers a targeted integrity check for one artifact.
+// Implemented by *reconcile.Reconciler in production; nil disables eager reconcile.
+// Authority: only SetIntegrityHealth is called through this path (reconcile axis).
+type ReconcileTriggerer interface {
+	ReconcileOne(ctx context.Context, casHash string) error
+}
 
 const defaultRegistryAddr = "harbor.10.113.24.96.nip.io"
 
@@ -37,15 +45,23 @@ type Service struct {
 	validator  *validate.Service
 	registry   *catalog.ToolRegistryService
 	indexStore *index.Store
+	reconciler ReconcileTriggerer // nil = no eager reconcile
 }
 
 // NewService creates a BuildService backed by podbridge5.
-func NewService(validator *validate.Service, registry *catalog.ToolRegistryService, store *index.Store) (*Service, error) {
+// reconciler may be nil; when non-nil it is called after successful referrer push
+// so integrity_health transitions to Healthy without waiting for the next reconcile tick.
+func NewService(
+	validator *validate.Service, registry *catalog.ToolRegistryService, store *index.Store, reconciler ReconcileTriggerer,
+) (*Service, error) {
 	builder, err := newPodbridge5Builder()
 	if err != nil {
 		return nil, fmt.Errorf("build service init: %w", err)
 	}
-	return &Service{builder: builder, validator: validator, registry: registry, indexStore: store}, nil
+	return &Service{
+		builder: builder, validator: validator, registry: registry,
+		indexStore: store, reconciler: reconciler,
+	}, nil
 }
 
 // Close releases the underlying image build storage.
@@ -55,6 +71,8 @@ func (s *Service) Close() error {
 
 // BuildAndRegister implements BuildServiceServer.
 // Full orchestration: L2 (image build+push) → L3 (dry-run) → L4 (smoke run) → registration.
+//
+//nolint:funlen // orchestration function — extracting sub-steps would obscure the L2→L3→L4 sequence.
 func (s *Service) BuildAndRegister(req *nfv1.BuildRequest, stream grpc.ServerStreamingServer[nfv1.BuildEvent]) error {
 	ctx := stream.Context()
 
@@ -147,6 +165,7 @@ func (s *Service) BuildAndRegister(req *nfv1.BuildRequest, stream grpc.ServerStr
 
 	// ── spec referrer push (TODO-07) ─────────────────────────────────────────────
 	// Non-fatal: if push fails, integrity_health stays Partial and reconcile retries.
+	// integrity_health is updated ONLY via ReconcileOne (reconcile axis — authority map).
 	if regErr == nil && s.indexStore != nil {
 		imageRepo := fmt.Sprintf("%s/library/%s", registryAddr(), sanitizeName(req.ToolName))
 		referrerDigest, refErr := oras.PushToolSpecReferrer(ctx, imageRepo, digest, regResp.Tool)
@@ -159,8 +178,11 @@ func (s *Service) BuildAndRegister(req *nfv1.BuildRequest, stream grpc.ServerStr
 			if idxErr := s.indexStore.SetSpecReferrerDigest(regResp.CasHash, referrerDigest); idxErr != nil {
 				slog.Warn("index spec referrer digest update failed", "err", idxErr)
 			}
-			if idxErr := s.indexStore.SetIntegrityHealth(regResp.CasHash, index.HealthHealthy); idxErr != nil {
-				slog.Warn("index integrity_health update failed", "err", idxErr)
+			// Delegate integrity_health update to reconciler (authority map: reconcile axis only).
+			if s.reconciler != nil {
+				if recErr := s.reconciler.ReconcileOne(ctx, regResp.CasHash); recErr != nil {
+					slog.Warn("eager reconcile after referrer push failed", "err", recErr)
+				}
 			}
 		}
 	}

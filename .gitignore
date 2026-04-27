@@ -1,12 +1,23 @@
 # 빌드 출력
 bin/
-/nodeforge
+/nodevault
+/nodepalette
+/controlplane
+
+# 런타임 데이터 (assets/)
+assets/catalog/
+assets/datacatalog/
+assets/index/
 
 # 생성 파일 (proto 생성 코드는 gen/ 디렉토리)
 gen/
 
 # 테스트
 coverage.out
+
+# IDE
+.idea/
+.codex
 
 # 환경
 .env

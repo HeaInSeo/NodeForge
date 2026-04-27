@@ -4,6 +4,7 @@
 미래의 NodeVault. gRPC 서버 + Catalog REST API를 단일 바이너리로 제공한다.
 
 → 전체 플랫폼 구성 및 end-to-end 흐름: [docs/PLATFORM_MAP.md](docs/PLATFORM_MAP.md)
+→ TrueNAS/iLO/NFS 운영 메모: [docs/TRUENAS_NFS_RUNBOOK.md](docs/TRUENAS_NFS_RUNBOOK.md)
 
 ---
 

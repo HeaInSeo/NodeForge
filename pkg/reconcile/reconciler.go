@@ -26,16 +26,21 @@ import (
 )
 
 // RegistryChecker is the interface for checking artifact state in the OCI registry.
-// Implemented by pkg/registry.Client in production; replaced by fakes in tests.
+// Implemented by pkg/registry.HarborChecker in production; replaced by fakes in tests.
+//
+// imageRef is the full image reference stored in index.Entry.ImageRef
+// (e.g. "harbor.10.113.24.96.nip.io/library/bwa:latest").
+// digest is the manifest digest (e.g. "sha256:abc123") from index.Entry.ImageDigest.
+// Both are required to form the registry API URL.
 type RegistryChecker interface {
 	// ImageExists checks whether a manifest with the given digest exists in the registry.
-	ImageExists(ctx context.Context, imageDigest string) (bool, error)
+	ImageExists(ctx context.Context, imageRef, digest string) (bool, error)
 
-	// ReferrerExists checks whether a spec referrer artifact attached to subjectDigest exists.
-	ReferrerExists(ctx context.Context, subjectDigest string) (bool, error)
+	// ReferrerExists checks whether a spec referrer artifact attached to the subject image exists.
+	ReferrerExists(ctx context.Context, imageRef, subjectDigest string) (bool, error)
 
 	// PullReachable checks whether the image can actually be pulled (slow check).
-	PullReachable(ctx context.Context, imageDigest string) (bool, error)
+	PullReachable(ctx context.Context, imageRef, digest string) (bool, error)
 }
 
 // Reconciler reconciles the NodeVault index against the actual registry state.
@@ -59,13 +64,13 @@ func (r *Reconciler) FastRun(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("reconcile fast run: list all: %w", err)
 	}
-	for _, e := range entries {
+	for i := range entries {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := r.reconcileExistence(ctx, e); err != nil {
+		if err := r.reconcileExistence(ctx, entries[i]); err != nil {
 			// Log and continue — one artifact failure must not halt the whole loop.
-			fmt.Printf("reconcile: fast check %s: %v\n", e.CasHash, err)
+			fmt.Printf("reconcile: fast check %s: %v\n", entries[i].CasHash, err)
 		}
 	}
 	return nil
@@ -82,13 +87,15 @@ func (r *Reconciler) ReconcileOne(ctx context.Context, casHash string) error {
 }
 
 // reconcileExistence checks image + referrer existence and updates integrity_health.
+//
+//nolint:gocritic // hugeParam: Entry is passed by value intentionally (snapshot semantics).
 func (r *Reconciler) reconcileExistence(ctx context.Context, e index.Entry) error {
-	imageOK, err := r.checker.ImageExists(ctx, e.ImageDigest)
+	imageOK, err := r.checker.ImageExists(ctx, e.ImageRef, e.ImageDigest)
 	if err != nil {
 		return fmt.Errorf("image exists check: %w", err)
 	}
 
-	referrerOK, err := r.checker.ReferrerExists(ctx, e.ImageDigest)
+	referrerOK, err := r.checker.ReferrerExists(ctx, e.ImageRef, e.ImageDigest)
 	if err != nil {
 		return fmt.Errorf("referrer exists check: %w", err)
 	}
@@ -108,24 +115,26 @@ func (r *Reconciler) SlowRun(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("reconcile slow run: list all: %w", err)
 	}
-	for _, e := range entries {
+	for i := range entries {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		// Only pull-verify Healthy entries — non-Healthy is already flagged by fast loop.
-		if e.IntegrityHealth != index.HealthHealthy {
+		if entries[i].IntegrityHealth != index.HealthHealthy {
 			continue
 		}
-		if err := r.reconcileReachability(ctx, e); err != nil {
-			fmt.Printf("reconcile: slow check %s: %v\n", e.CasHash, err)
+		if err := r.reconcileReachability(ctx, entries[i]); err != nil {
+			fmt.Printf("reconcile: slow check %s: %v\n", entries[i].CasHash, err)
 		}
 	}
 	return nil
 }
 
 // reconcileReachability attempts a pull and updates integrity_health if unreachable.
+//
+//nolint:gocritic // hugeParam: Entry is passed by value intentionally (snapshot semantics).
 func (r *Reconciler) reconcileReachability(ctx context.Context, e index.Entry) error {
-	ok, err := r.checker.PullReachable(ctx, e.ImageDigest)
+	ok, err := r.checker.PullReachable(ctx, e.ImageRef, e.ImageDigest)
 	if err != nil {
 		return fmt.Errorf("pull reachable check: %w", err)
 	}
@@ -138,7 +147,7 @@ func (r *Reconciler) reconcileReachability(ctx context.Context, e index.Entry) e
 // ── Loop runners (background goroutine helpers) ───────────────────────────────
 
 // RunFastLoop starts a background goroutine that calls FastRun every fastInterval.
-// Stops when ctx is cancelled.
+// Stops when ctx is canceled.
 func (r *Reconciler) RunFastLoop(ctx context.Context, fastInterval time.Duration) {
 	go func() {
 		ticker := time.NewTicker(fastInterval)
@@ -157,7 +166,7 @@ func (r *Reconciler) RunFastLoop(ctx context.Context, fastInterval time.Duration
 }
 
 // RunSlowLoop starts a background goroutine that calls SlowRun every slowInterval.
-// Stops when ctx is cancelled.
+// Stops when ctx is canceled.
 func (r *Reconciler) RunSlowLoop(ctx context.Context, slowInterval time.Duration) {
 	go func() {
 		ticker := time.NewTicker(slowInterval)
