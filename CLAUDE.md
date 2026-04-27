@@ -132,7 +132,18 @@ Before marking a change complete, explicitly check for:
 - dry-run returns success on schema error due to misparse of API server response
 - K8s watch connection drops mid-Job without reconnect logic
 
-## 12. NodeVault 전환 계획 (진행 중)
+## 12. 배포 시 알려진 미결 사항 (TODO)
+
+seoy 배포 운영 중 발생하는 warning으로, 현재는 무해하나 빌드 파이프라인 완성 전 해결 필요.
+
+| # | 증상 | 원인 | 해결 조건 |
+|---|------|------|-----------|
+| D-01 | `no subuid ranges found for user "nodevault" in /etc/subuid` | seoy에서 `nodevault` 서비스 계정의 subuid/subgid 범위 미설정. podbridge5 rootless 빌드 시 user namespace UID 매핑에 필요. | seoy에서 `sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 nodevault` 실행. 실제 BuildRequest가 들어오기 전 필수. |
+| D-02 | `ValidateService unavailable (kubeconfig missing?)` | `/opt/nodevault/kubeconfig` 파일 없음. L3 dry-run / L4 smoke run은 K8s 접근 필요. | seoy K8s kubeconfig를 `/opt/nodevault/kubeconfig`로 배포. `deploy-seoy.sh`에 kubeconfig 복사 단계 추가 예정. L3/L4 구현 전 필수. |
+
+> **D-01 / D-02는 기동 자체를 막지 않는다.** gRPC Ping, PolicyService, BuildRequest 수신까지는 정상 동작.
+
+## 14. NodeVault 전환 계획 (진행 중)
 
 전체 전환 계획은 **`docs/NODEVAULT_TRANSITION_PLAN.md`** 참조.
 새 기능 구현 전 반드시 해당 문서의 우선순위와 선행 조건을 확인할 것.
