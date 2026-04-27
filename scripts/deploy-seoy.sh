@@ -52,7 +52,8 @@ else
   $SSH "sudo mv /tmp/nodevault   ${REMOTE_DIR}/bin/nodevault && \
         sudo mv /tmp/nodepalette ${REMOTE_DIR}/bin/nodepalette && \
         sudo chown nodevault:nodevault ${REMOTE_DIR}/bin/nodevault ${REMOTE_DIR}/bin/nodepalette && \
-        sudo chmod +x ${REMOTE_DIR}/bin/nodevault ${REMOTE_DIR}/bin/nodepalette"
+        sudo chmod +x ${REMOTE_DIR}/bin/nodevault ${REMOTE_DIR}/bin/nodepalette && \
+        sudo restorecon -v ${REMOTE_DIR}/bin/nodevault ${REMOTE_DIR}/bin/nodepalette 2>/dev/null || true"
 
   # ── 3. policy wasm 복사 (있는 경우) ───────────────────────────────────────
   if [[ -f "${LOCAL_ASSETS}/policy/dockguard.wasm" ]]; then
@@ -60,7 +61,8 @@ else
     $SCP_BASE "${LOCAL_ASSETS}/policy/dockguard.wasm" \
       "${SEOY_USER}@${SEOY_HOST}:/tmp/dockguard.wasm"
     $SSH "sudo mv /tmp/dockguard.wasm ${REMOTE_DIR}/assets/policy/dockguard.wasm && \
-          sudo chown nodevault:nodevault ${REMOTE_DIR}/assets/policy/dockguard.wasm"
+          sudo chown nodevault:nodevault ${REMOTE_DIR}/assets/policy/dockguard.wasm && \
+          sudo restorecon -v ${REMOTE_DIR}/assets/policy/dockguard.wasm 2>/dev/null || true"
   else
     echo "==> assets/policy/dockguard.wasm 없음 — 건너뜀"
   fi
