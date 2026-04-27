@@ -159,9 +159,11 @@ Before marking a change complete, explicitly check for:
 
 | 패키지 | 상태 | 역할 |
 |--------|------|------|
-| `pkg/index` | 스텁 존재, 미구현 | index 단일 제어 계층 (TODO-08) |
-| `pkg/oras` | 스텁 존재, 미구현 | OCI referrer push (TODO-07) |
-| `pkg/catalog` | 현재 사용 중 | CAS 저장 — pkg/index 완성 후 대체 예정 |
+| `pkg/index` | 구현 완료 | index 단일 제어 계층 (vault-index.json, 이중 축 상태) |
+| `pkg/oras` | 구현 완료 | OCI spec referrer push (sori wrapping) |
+| `pkg/reconcile` | 구현 완료 | Harbor 현실 대조 fast/slow loop |
+| `pkg/catalogrest` | 구현 완료 | NodePalette REST 핸들러 + Harbor webhook 수신 |
+| `pkg/catalog` | 현재 사용 중 | CAS 저장 (RegisteredToolDefinition / RegisteredDataDefinition) |
 
 ### 6번 결정 체크리스트 추가 항목
 

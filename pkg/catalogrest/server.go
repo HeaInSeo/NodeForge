@@ -107,19 +107,19 @@ func (s *Server) handleListTools(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items := make([]ToolItem, 0, len(entries))
-	for _, e := range entries {
-		if kind != "" && string(e.ArtifactKind) != kind {
+	for i := range entries {
+		if kind != "" && string(entries[i].ArtifactKind) != kind {
 			continue
 		}
-		tool, loadErr := s.catalog.Load(e.CasHash)
+		tool, loadErr := s.catalog.Load(entries[i].CasHash)
 		if loadErr != nil {
 			// CAS file missing — skip; reconcile loop will update integrity_health.
 			continue
 		}
-		items = append(items, toToolItem(tool, e.IntegrityHealth))
+		items = append(items, toToolItem(tool, entries[i].IntegrityHealth))
 	}
 
-	writeJSON(w, http.StatusOK, ListToolsResponse{Tools: items})
+	writeJSON(w, ListToolsResponse{Tools: items})
 }
 
 // handleGetTool serves GET /v1/catalog/tools/{cas_hash}.
@@ -146,7 +146,7 @@ func (s *Server) handleGetTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toToolItem(tool, entry.IntegrityHealth))
+	writeJSON(w, toToolItem(tool, entry.IntegrityHealth))
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -189,18 +189,18 @@ func (s *Server) handleListData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	items := make([]DataItem, 0)
-	for _, e := range entries {
-		if e.ArtifactKind != index.KindData {
+	for i := range entries {
+		if entries[i].ArtifactKind != index.KindData {
 			continue
 		}
-		d, loadErr := s.dataCatalog.Load(e.CasHash)
+		d, loadErr := s.dataCatalog.Load(entries[i].CasHash)
 		if loadErr != nil {
 			continue
 		}
-		items = append(items, toDataItem(d, e.IntegrityHealth))
+		items = append(items, toDataItem(d, entries[i].IntegrityHealth))
 	}
 
-	writeJSON(w, http.StatusOK, ListDataResponse{Data: items})
+	writeJSON(w, ListDataResponse{Data: items})
 }
 
 // handleGetData serves GET /v1/catalog/data/{cas_hash}.
@@ -231,7 +231,7 @@ func (s *Server) handleGetData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toDataItem(d, entry.IntegrityHealth))
+	writeJSON(w, toDataItem(d, entry.IntegrityHealth))
 }
 
 func toDataItem(d *nfv1.RegisteredDataDefinition, health index.IntegrityHealth) DataItem {
@@ -256,8 +256,8 @@ func toDataItem(d *nfv1.RegisteredDataDefinition, health index.IntegrityHealth) 
 	return item
 }
 
-func writeJSON(w http.ResponseWriter, code int, v any) {
+func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
+	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(v)
 }

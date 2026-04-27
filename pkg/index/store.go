@@ -65,6 +65,8 @@ func NewAt(dir string) (*Store, error) {
 
 // Append adds a new entry to the index.
 // Returns an error if an entry with the same CasHash already exists.
+//
+//nolint:gocritic // hugeParam: Entry by value is intentional — callers own their copy.
 func (s *Store) Append(e Entry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -72,8 +74,8 @@ func (s *Store) Append(e Entry) error {
 	if e.CasHash == "" {
 		return errors.New("index: CasHash must not be empty")
 	}
-	for _, existing := range s.idx.Entries {
-		if existing.CasHash == e.CasHash {
+	for i := range s.idx.Entries {
+		if s.idx.Entries[i].CasHash == e.CasHash {
 			return fmt.Errorf("index: entry %q already exists", e.CasHash)
 		}
 	}
@@ -97,12 +99,26 @@ func (s *Store) GetByCasHash(casHash string) (Entry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	for _, e := range s.idx.Entries {
-		if e.CasHash == casHash {
-			return e, nil
+	for i := range s.idx.Entries {
+		if s.idx.Entries[i].CasHash == casHash {
+			return s.idx.Entries[i], nil
 		}
 	}
 	return Entry{}, fmt.Errorf("%w: cas_hash=%q", ErrNotFound, casHash)
+}
+
+// GetByImageDigest returns the first entry whose ImageDigest matches the given digest.
+// Returns ErrNotFound if no such entry exists.
+func (s *Store) GetByImageDigest(digest string) (Entry, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for i := range s.idx.Entries {
+		if s.idx.Entries[i].ImageDigest == digest {
+			return s.idx.Entries[i], nil
+		}
+	}
+	return Entry{}, fmt.Errorf("%w: image_digest=%q", ErrNotFound, digest)
 }
 
 // ListByStableRef returns all entries with the given stableRef.
@@ -112,9 +128,9 @@ func (s *Store) ListByStableRef(stableRef string) ([]Entry, error) {
 	defer s.mu.RUnlock()
 
 	var out []Entry
-	for _, e := range s.idx.Entries {
-		if e.StableRef == stableRef {
-			out = append(out, e)
+	for i := range s.idx.Entries {
+		if s.idx.Entries[i].StableRef == stableRef {
+			out = append(out, s.idx.Entries[i])
 		}
 	}
 	return out, nil
@@ -127,9 +143,9 @@ func (s *Store) ListActive() ([]Entry, error) {
 	defer s.mu.RUnlock()
 
 	var out []Entry
-	for _, e := range s.idx.Entries {
-		if e.LifecyclePhase == PhaseActive {
-			out = append(out, e)
+	for i := range s.idx.Entries {
+		if s.idx.Entries[i].LifecyclePhase == PhaseActive {
+			out = append(out, s.idx.Entries[i])
 		}
 	}
 	return out, nil
@@ -196,8 +212,8 @@ func (s *Store) All() ([]Entry, error) {
 // ── internal helpers ──────────────────────────────────────────────────────────
 
 func (s *Store) findIndex(casHash string) (int, error) {
-	for i, e := range s.idx.Entries {
-		if e.CasHash == casHash {
+	for i := range s.idx.Entries {
+		if s.idx.Entries[i].CasHash == casHash {
 			return i, nil
 		}
 	}

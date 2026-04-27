@@ -62,7 +62,7 @@ func main() {
 		mux.ServeHTTP(w, r)
 	})
 
-	slog.Info("NodePalette starting", "addr", addr)
+	slog.Info("NodePalette starting", "addr", addr) //nolint:gosec // G706: addr is sanitized above.
 	//nolint:gosec // addr is operator-configured and sanitized.
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		slog.Error("NodePalette exited", "err", err)

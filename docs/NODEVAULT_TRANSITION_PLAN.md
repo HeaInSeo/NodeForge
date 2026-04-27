@@ -7,7 +7,7 @@
 - 아키텍처 개요: [ARCHITECTURE.md](ARCHITECTURE.md)
 - v0.2 스펙: [TOOL_CONTRACT_V0_2.md](TOOL_CONTRACT_V0_2.md)
 
-이 문서는 NodeForge → NodeVault 전환의 전체 TODO 목록, 우선순위, 의존성,
+이 문서는 NodeVault → NodeVault 전환의 전체 TODO 목록, 우선순위, 의존성,
 완료 기준을 기록한다. 개발 시작 전 이 문서를 먼저 확인할 것.
 
 ---
@@ -19,8 +19,8 @@
 | 컴포넌트 | 위치 | 상태 |
 |----------|------|------|
 | NodeKit (C#/Avalonia) | NodeKit/ | L1 검증 + BuildRequest gRPC 전송 완성, AdminToolList REST 전환 완료 |
-| NodeVault (Go) | NodeForge/ | BuildService/PolicyService/ValidateService 완성, pkg/index ✓, pkg/catalogrest ✓, pkg/oras ✓ |
-| proto canonical source | NodeForge/protos/ | `nodeforge`, `tool`, `volres` ownership 회수 + go.work 제거 완료 (Sprint 1-4 완료) |
+| NodeVault (Go) | NodeVault/ | BuildService/PolicyService/ValidateService 완성, pkg/index ✓, pkg/catalogrest ✓, pkg/oras ✓ |
+| proto canonical source | NodeVault/protos/ | `nodeforge`, `tool`, `volres` ownership 회수 + go.work 제거 완료 (Sprint 1-4 완료) |
 | DockGuard (OPA/Rego) | DockGuard/ | 9개 규칙(DFM/DSF/DGF), .wasm 번들 완성 |
 | Harbor | harbor.10.113.24.96.nip.io | 운영 중 (Helm, Cilium LB VIP, all components healthy) |
 
@@ -30,7 +30,7 @@
 - DataDefinition / DataRegisterRequest (NodeKit에 미구현 — TODO-12)
 - 삭제/철회 lifecycle (Retract/Delete API — TODO-14)
 - DagEdit Catalog 연동 (P5 이후)
-- NodeForge → NodeVault K8s 배포 전환 (TODO-09b)
+- NodeVault → NodeVault K8s 배포 전환 (TODO-09b)
 
 ---
 
@@ -141,7 +141,7 @@ index의 상태는 두 축으로 분리한다. **이 두 축을 같은 필드에
 **완료 기준**
 - [x] v0.2 전체 필드 라운드트립 검증 (`TestRegisterTool_V02RoundTrip` — PASS)
 - [x] NodeKit C# 모델이 proto 필드를 빠짐없이 매핑 (BuildRequest, DataRegisterRequest)
-- [x] NodeForge CAS 저장 JSON이 v0.2 전체 필드 보존 (catalog_test.go 검증)
+- [x] NodeVault CAS 저장 JSON이 v0.2 전체 필드 보존 (catalog_test.go 검증)
 - [x] ListTools / GetTool 응답에 v0.2 전체 필드 포함 (catalogrest_test.go 검증)
 - [x] `dotnet build` 경고 증가 없음 — CA1062 3건 수정 (ThrowIfNull 추가)
 
@@ -218,34 +218,49 @@ index의 상태는 두 축으로 분리한다. **이 두 축을 같은 필드에
 
 ---
 
-#### TODO-09a | NodeForge → NodeVault 역할 재구성 **설계** ✓
+#### TODO-09a | NodeVault → NodeVault 역할 재구성 **설계** ✓
 
 **완료 기준**
 - [x] write authority 범위 문서화 → `AUTHORITY_MAP.md`
-- [x] NodeForge 하위 책임 경계 명시
+- [x] NodeVault 하위 책임 경계 명시
 - [x] lifecycle_phase 변경 authority = NodeVault only 명시
 - [x] integrity_health 변경 authority = reconcile loop 명시
 - [x] Delete / Retract authority = NodeVault only 명시
 - [x] index mutation authority = NodeVault only 명시
-- [x] NodeForge build 완료 → NodeVault index commit 핸드오프 프로토콜 명시
+- [x] NodeVault build 완료 → NodeVault index commit 핸드오프 프로토콜 명시
 - [x] 결과물: authority map 표 (구두 합의 아님)
 
 **선행 조건**: TODO-01, TODO-02
 
 ---
 
-#### TODO-09b | NodeForge runtime / deployment 전환 **구현**
+#### TODO-09b | NodeVault runtime / deployment 전환 **구현**
 
-**진입 조건 상태**: Cilium 운영 중 ✓, Harbor 운영 중 ✓, NodeForge K8s Deployment 운영 중 ✓
+**진입 조건 상태**: Cilium 운영 중 ✓, Harbor 운영 중 ✓, NodeVault K8s Deployment 운영 중 ✓
 
 **완료 기준**
-- [ ] NodeVault가 authority map대로 단일 write authority로 동작
-- [ ] lifecycle_phase 변경 경로 = NodeVault only
-- [ ] integrity_health 변경 경로 = reconcile loop only
-- [ ] NodeForge-NodeVault 핸드오프 경계 구현
-- [ ] 기존 unit + integration 테스트 통과
+- [x] NodeVault가 authority map대로 단일 write authority로 동작
+  - `catalog.go`만 `SetLifecyclePhase` 호출 (NodeVault gRPC write path)
+  - `reconciler.go`만 `SetIntegrityHealth` 호출 (reconcile axis)
+  - `build/service.go`는 `ReconcileOne` 위임 — 직접 `SetIntegrityHealth` 호출 제거 (2026-04-20)
+- [x] lifecycle_phase 변경 경로 = NodeVault only
+  - `pkg/catalog/catalog.go`: `RetractTool`, `DeleteTool`만 호출, 다른 패키지 호출 없음
+- [x] integrity_health 변경 경로 = reconcile loop only
+  - `pkg/reconcile/reconciler.go`: `reconcileExistence`, `reconcileReachability`에서만 호출
+  - `build/service.go`: 직접 호출 제거 → `ReconcileTriggerer.ReconcileOne` 위임 (2026-04-20)
+- [x] NodeVault-NodeVault 핸드오프 경계 구현
+  - `BuildService.BuildAndRegister` → `RegisterTool` gRPC → `index.Append` + `lifecycle_phase=Active`
+  - 동일 바이너리 내 논리적 경계 (authority map 상 NodeVault 단일 바이너리)
+- [x] 기존 unit + integration 테스트 통과 (전 패키지 PASS — 2026-04-20 확인)
+- [ ] seoy 호스트 배포 실행 + 서비스 기동 확인 (SSH 접근 후 `make deploy-seoy`)
+- [ ] NodeKit → NodeVault end-to-end 연동 확인 (UX 테스트)
 
 **선행 조건**: TODO-09a (완료)
+
+**배포 아티팩트** (2026-04-20 완료):
+- `deploy/nodevault.service`, `deploy/nodepalette.service` — systemd unit
+- `scripts/deploy-seoy.sh` — rsync + systemd 배포 스크립트
+- `NODEVAULT_FAST_RECONCILE` 환경변수로 reconcile 간격 조절 가능 (기본 5m, seoy 테스트 30s)
 
 ---
 
@@ -286,7 +301,7 @@ index의 상태는 두 축으로 분리한다. **이 두 축을 같은 필드에
 #### TODO-12 | Data write path 구체화
 
 **현재 상태**
-NodeKit DataDefinition / DataRegisterRequest 미구현. NodeForge data artifact 처리 없음.
+NodeKit DataDefinition / DataRegisterRequest 미구현. NodeVault data artifact 처리 없음.
 
 **해야 할 것**
 data artifact(참조 genome, annotation bundle 등)를 공식 artifact로 등록/탐색 가능하게.
@@ -319,30 +334,35 @@ data artifact도 `lifecycle_phase` / `integrity_health` 이중 축 적용.
 
 ---
 
-#### TODO-14 | 삭제 / 철회 lifecycle 설계 구현
-
-**현재 상태**
-삭제/철회 개념 없음. 파일 직접 삭제 외 운영 경로 없음.
+#### TODO-14 | 삭제 / 철회 lifecycle 설계 구현 ✓ (Harbor 물리 삭제 deferred)
 
 **완료 기준**
-- [ ] Retract API (NodeVault, lifecycle_phase 전이)
-- [ ] lifecycle_phase = Retracted 상태에서 Catalog 조회 결과 제외
-- [ ] 물리 삭제 경로 (Harbor blob 삭제 또는 GC)
-- [ ] TODO-09a authority map에서 Retract/Delete = NodeVault only 반영
-- [ ] lifecycle_phase 변경과 integrity_health 변경이 분리된 경로로 처리됨 확인
+- [x] Retract API (NodeVault, lifecycle_phase 전이) → `catalog.go:RetractTool`
+- [x] lifecycle_phase = Retracted 상태에서 Catalog 조회 결과 제외 → `catalogrest` `ListActive()` 경유
+- [ ] 물리 삭제 경로 (Harbor blob 삭제 또는 GC) — **deferred**: Harbor REST API 기반 manifest 삭제는 별도 작업 (`DELETE /api/v2.0/projects/.../repositories/.../artifacts/{digest}`)
+- [x] TODO-09a authority map에서 Retract/Delete = NodeVault only 반영 → `AUTHORITY_MAP.md`
+- [x] lifecycle_phase 변경과 integrity_health 변경이 분리된 경로로 처리됨 확인 → `TestRetractTool_IntegrityHealthUnchanged` PASS
+
+**구현 내용** (2026-04-19)
+- `pkg/catalog/catalog.go`: `RetractTool` / `DeleteTool` gRPC 핸들러 (PhaseRetracted / PhaseDeleted 전이)
+- 테스트 4개: `TestRetractTool_TransitionsPhase`, `TestRetractTool_NotFound`, `TestDeleteTool_TransitionsPhase`, `TestRetractTool_IntegrityHealthUnchanged`
+- Catalog 제외: `catalogrest.ListActive()` → lifecycle_phase = Active 기준만 반환 (Retracted/Deleted 자동 제외)
+
+**알려진 갭**: Harbor manifest 물리 삭제 미구현. 현재는 lifecycle_phase = Deleted 전이 후 Harbor에 image가 남음.
+삭제 API: `DELETE /api/v2.0/projects/{project}/repositories/{repo}/artifacts/{digest}` — NodeVault `pkg/registry` 에 추가 예정.
 
 **선행 조건**: TODO-08 (완료), TODO-09a (완료)
 
 ---
 
-#### TODO-15a | Harbor 이벤트 표면 검증
-
-**현재 상태**: Harbor 운영 중 (이벤트 목록 미검증).
+#### TODO-15a | Harbor 이벤트 표면 검증 ✓
 
 **완료 기준**
-- [ ] Harbor 버전에서 지원하는 webhook 이벤트 목록 문서화
-- [ ] GC 완료 이벤트 포함 여부 확인
-- [ ] 관찰 불가능한 이벤트 목록 명시 (reconcile이 커버해야 하는 범위)
+- [x] Harbor 버전에서 지원하는 webhook 이벤트 목록 문서화 → `HARBOR_WEBHOOK_EVENTS.md`
+- [x] GC 완료 이벤트 포함 여부 확인 → **없음** (Harbor 2.x는 GC webhook 미지원)
+- [x] 관찰 불가능한 이벤트 목록 명시 → `HARBOR_WEBHOOK_EVENTS.md §3` (GC, 부분 push 실패, 네트워크 단절, webhook 전송 실패)
+
+**알려진 갭**: live 페이로드 구조 확인 (seoy 실환경 테스트)은 `HARBOR_WEBHOOK_EVENTS.md §7` 체크리스트로 추적.
 
 **선행 조건**: Harbor 운영 중 (완료)
 
@@ -367,13 +387,30 @@ data artifact도 `lifecycle_phase` / `integrity_health` 이중 축 적용.
 
 ---
 
-#### TODO-15c | Webhook fast path
+#### TODO-15c | Webhook fast path ✓
 
 **완료 기준**
-- [ ] webhook 수신 시 reconcile trigger 호출 (integrity_health 갱신 유도)
-- [ ] webhook 미수신 시에도 주기 reconcile이 상태 보정
+- [x] webhook 수신 시 reconcile trigger 호출 (integrity_health 갱신) → `pkg/webhook/handler.go`
+- [x] webhook 미수신 시에도 주기 reconcile이 상태 보정 → `cmd/controlplane/main.go`: `rec.RunFastLoop` + `rec.RunSlowLoop` (FastRun 5분 / SlowRun 30분)
 
-**선행 조건**: TODO-15a, TODO-15b
+**구현 내용** (2026-04-19)
+- `pkg/webhook/handler.go`: Harbor 이벤트 파싱 + `store.SetIntegrityHealth` 직접 갱신
+  - `DELETE_ARTIFACT` → Missing / `PUSH_ARTIFACT` → Partial / 기타 무시
+  - lifecycle_phase 절대 변경하지 않음 (이중 축 불변)
+- `pkg/webhook/handler_test.go`: 5개 테스트 (Delete→Missing, Push→Partial, 미지 이벤트 무시, 미지 digest 무시, lifecycle_phase 불변)
+- `pkg/index/store.go`: `GetByImageDigest(digest) (Entry, error)` 추가
+- `pkg/index/schema.go`: `ImageRef` 필드 추가 (full image reference)
+- `pkg/catalog/catalog.go`: `RegisterTool` 시 `ImageRef` = `req.ImageUri` 저장
+- `pkg/reconcile/reconciler.go`: `RegistryChecker` 인터페이스 signature 갱신 (`imageRef, digest string` 파라미터)
+- `pkg/registry/checker.go` (신규): `HarborChecker` — OCI Distribution Spec API 기반
+  - `ImageExists`: `HEAD /v2/{name}/manifests/{digest}`
+  - `ReferrerExists`: `GET /v2/{name}/referrers/{digest}` (OCI referrers API)
+  - `PullReachable`: `GET /v2/{name}/manifests/{digest}`
+- `cmd/controlplane/main.go`: reconcile 루프 시작 + webhook HTTP 서버 (`:8082`)
+
+**알려진 갭**: `HarborChecker` live 검증 (seoy + Harbor 실환경) 미완료.
+
+**선행 조건**: TODO-15a (완료), TODO-15b (완료)
 
 ---
 
@@ -413,7 +450,7 @@ data artifact도 `lifecycle_phase` / `integrity_health` 이중 축 적용.
 - [ ] 전체 플랫폼 아키텍처 다이어그램 (write path / read path 분리 표시)
 - [ ] authority map (TODO-09a) 포함
 - [ ] 이중 축 상태 모델 (TODO-15b) 포함
-- [ ] kaniko/NodeForge 과거 흔적 제거
+- [ ] kaniko/NodeVault 과거 흔적 제거
 
 **선행 조건**: TODO-17 이후
 

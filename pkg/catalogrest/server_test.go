@@ -56,16 +56,27 @@ func newServer(t *testing.T) (*httptest.Server, *catalog.ToolRegistryService) {
 	return ts, svc
 }
 
+// doGet issues a GET request with context and fatals on transport error.
+func doGet(t *testing.T, ts *httptest.Server, url string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, http.NoBody)
+	if err != nil {
+		t.Fatalf("build GET request: %v", err)
+	}
+	resp, err := ts.Client().Do(req)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	return resp
+}
+
 // ── GET /v1/catalog/tools ─────────────────────────────────────────────────────
 
 func TestListTools_Empty(t *testing.T) {
 	ts, _ := newServer(t)
 
-	resp, err := ts.Client().Get(ts.URL + "/v1/catalog/tools")
-	if err != nil {
-		t.Fatalf("GET: %v", err)
-	}
-	defer resp.Body.Close()
+	resp := doGet(t, ts, ts.URL+"/v1/catalog/tools")
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status: got %d want 200", resp.StatusCode)
@@ -86,11 +97,8 @@ func TestListTools_ReturnsActiveTools(t *testing.T) {
 	registerTool(t, svc, "bwa", "1.0")
 	registerTool(t, svc, "samtools", "1.17")
 
-	resp, err := ts.Client().Get(ts.URL + "/v1/catalog/tools")
-	if err != nil {
-		t.Fatalf("GET: %v", err)
-	}
-	defer resp.Body.Close()
+	resp := doGet(t, ts, ts.URL+"/v1/catalog/tools")
+	defer func() { _ = resp.Body.Close() }()
 
 	var body catalogrest.ListToolsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
@@ -107,11 +115,8 @@ func TestListTools_StableRefFilter(t *testing.T) {
 	registerTool(t, svc, "bwa", "1.0")
 	registerTool(t, svc, "bowtie2", "2.0")
 
-	resp, err := ts.Client().Get(ts.URL + "/v1/catalog/tools?stable_ref=bwa@1.0")
-	if err != nil {
-		t.Fatalf("GET: %v", err)
-	}
-	defer resp.Body.Close()
+	resp := doGet(t, ts, ts.URL+"/v1/catalog/tools?stable_ref=bwa@1.0")
+	defer func() { _ = resp.Body.Close() }()
 
 	var body catalogrest.ListToolsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
@@ -130,8 +135,8 @@ func TestListTools_ArtifactKindFilter(t *testing.T) {
 	registerTool(t, svc, "bwa", "1.0")
 
 	// filter tool kind → 1 result
-	resp, _ := ts.Client().Get(ts.URL + "/v1/catalog/tools?artifact_kind=tool")
-	defer resp.Body.Close()
+	resp := doGet(t, ts, ts.URL+"/v1/catalog/tools?artifact_kind=tool")
+	defer func() { _ = resp.Body.Close() }()
 	var toolBody catalogrest.ListToolsResponse
 	_ = json.NewDecoder(resp.Body).Decode(&toolBody)
 	if len(toolBody.Tools) != 1 {
@@ -139,8 +144,8 @@ func TestListTools_ArtifactKindFilter(t *testing.T) {
 	}
 
 	// filter data kind → 0 results
-	resp2, _ := ts.Client().Get(ts.URL + "/v1/catalog/tools?artifact_kind=data")
-	defer resp2.Body.Close()
+	resp2 := doGet(t, ts, ts.URL+"/v1/catalog/tools?artifact_kind=data")
+	defer func() { _ = resp2.Body.Close() }()
 	var dataBody catalogrest.ListToolsResponse
 	_ = json.NewDecoder(resp2.Body).Decode(&dataBody)
 	if len(dataBody.Tools) != 0 {
@@ -151,11 +156,8 @@ func TestListTools_ArtifactKindFilter(t *testing.T) {
 func TestListTools_ContentType(t *testing.T) {
 	ts, _ := newServer(t)
 
-	resp, err := ts.Client().Get(ts.URL + "/v1/catalog/tools")
-	if err != nil {
-		t.Fatalf("GET: %v", err)
-	}
-	defer resp.Body.Close()
+	resp := doGet(t, ts, ts.URL+"/v1/catalog/tools")
+	defer func() { _ = resp.Body.Close() }()
 
 	ct := resp.Header.Get("Content-Type")
 	if ct != "application/json" {
@@ -169,11 +171,8 @@ func TestGetTool_Found(t *testing.T) {
 	ts, svc := newServer(t)
 	hash := registerTool(t, svc, "hisat2", "2.2.1")
 
-	resp, err := ts.Client().Get(ts.URL + "/v1/catalog/tools/" + hash)
-	if err != nil {
-		t.Fatalf("GET: %v", err)
-	}
-	defer resp.Body.Close()
+	resp := doGet(t, ts, ts.URL+"/v1/catalog/tools/"+hash)
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status: got %d want 200", resp.StatusCode)
@@ -203,11 +202,8 @@ func TestGetTool_Found(t *testing.T) {
 func TestGetTool_NotFound(t *testing.T) {
 	ts, _ := newServer(t)
 
-	resp, err := ts.Client().Get(ts.URL + "/v1/catalog/tools/nonexistent")
-	if err != nil {
-		t.Fatalf("GET: %v", err)
-	}
-	defer resp.Body.Close()
+	resp := doGet(t, ts, ts.URL+"/v1/catalog/tools/nonexistent")
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("status: got %d want 404", resp.StatusCode)
@@ -221,8 +217,8 @@ func TestToolItem_RegisteredAt_NonZero(t *testing.T) {
 	now := time.Now().Unix()
 	hash := registerTool(t, svc, "star", "2.7.11")
 
-	resp, _ := ts.Client().Get(ts.URL + "/v1/catalog/tools/" + hash)
-	defer resp.Body.Close()
+	resp := doGet(t, ts, ts.URL+"/v1/catalog/tools/"+hash)
+	defer func() { _ = resp.Body.Close() }()
 	var item catalogrest.ToolItem
 	_ = json.NewDecoder(resp.Body).Decode(&item)
 
@@ -235,8 +231,8 @@ func TestToolItem_IntegrityHealth_Default(t *testing.T) {
 	ts, svc := newServer(t)
 	hash := registerTool(t, svc, "bwa", "1.0")
 
-	resp, _ := ts.Client().Get(ts.URL + "/v1/catalog/tools/" + hash)
-	defer resp.Body.Close()
+	resp := doGet(t, ts, ts.URL+"/v1/catalog/tools/"+hash)
+	defer func() { _ = resp.Body.Close() }()
 	var item catalogrest.ToolItem
 	_ = json.NewDecoder(resp.Body).Decode(&item)
 

@@ -41,7 +41,7 @@ PR 리뷰 시 아래 항목이 포함되어 있으면 즉시 차단한다.
 - 이유: TODO-16b(UI revision 정책)가 결정되기 전까지 설계 확정 불가.
 
 ### N-08: TODO-09b NodeVault 런타임 전환 (인프라 안정화 전)
-- 비목표: Cilium + Harbor 안정화 전에 NodeForge → NodeVault 런타임 전환 구현
+- 비목표: Cilium + Harbor 안정화 전에 NodeVault → NodeVault 런타임 전환 구현
 - 이유: 09a(설계)와 09b(구현) 동시 시작 시 인프라/semantic/배포 실패 원인 분리 불가.
 
 ### N-09: data artifact 등록 (현재)

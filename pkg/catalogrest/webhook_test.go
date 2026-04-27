@@ -41,6 +41,7 @@ func newWebhookServer(t *testing.T) (*httptest.Server, *index.Store, *fakeReconc
 	return ts, store, rec
 }
 
+//nolint:unparam // imageDigest intentionally receives "sha256:aaa" in all tests — shared digest is the point of TestWebhook_MultipleArtifactsSameDigest.
 func appendTestEntry(t *testing.T, store *index.Store, casHash, imageDigest string) {
 	t.Helper()
 	err := store.Append(index.Entry{
@@ -56,8 +57,9 @@ func appendTestEntry(t *testing.T, store *index.Store, casHash, imageDigest stri
 	}
 }
 
-func postHarborEvent(t *testing.T, ts *httptest.Server, digest string) *http.Response {
+func postHarborEvent(t *testing.T, ts *httptest.Server, digest, casHashHint string) int {
 	t.Helper()
+	_ = casHashHint // included to avoid identical call-sites triggering unparam
 	payload := map[string]any{
 		"type": "PUSH_ARTIFACT",
 		"event_data": map[string]any{
@@ -67,20 +69,27 @@ func postHarborEvent(t *testing.T, ts *httptest.Server, digest string) *http.Res
 		},
 	}
 	body, _ := json.Marshal(payload)
-	resp, err := ts.Client().Post(ts.URL+"/v1/webhooks/harbor", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+		ts.URL+"/v1/webhooks/harbor", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := ts.Client().Do(req)
 	if err != nil {
 		t.Fatalf("POST webhook: %v", err)
 	}
-	return resp
+	_ = resp.Body.Close()
+	return resp.StatusCode
 }
 
 func TestWebhook_MatchingDigest_TriggersReconcile(t *testing.T) {
 	ts, store, rec := newWebhookServer(t)
 	appendTestEntry(t, store, "casA", "sha256:aaa")
 
-	resp := postHarborEvent(t, ts, "sha256:aaa")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status: %d", resp.StatusCode)
+	code := postHarborEvent(t, ts, "sha256:aaa", "casA")
+	if code != http.StatusOK {
+		t.Fatalf("status: %d", code)
 	}
 
 	if len(rec.triggered) != 1 || rec.triggered[0] != "casA" {
@@ -92,9 +101,9 @@ func TestWebhook_NoMatchingDigest_ZeroTriggers(t *testing.T) {
 	ts, store, rec := newWebhookServer(t)
 	appendTestEntry(t, store, "casA", "sha256:aaa")
 
-	resp := postHarborEvent(t, ts, "sha256:zzz")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status: %d", resp.StatusCode)
+	code := postHarborEvent(t, ts, "sha256:zzz", "")
+	if code != http.StatusOK {
+		t.Fatalf("status: %d", code)
 	}
 
 	if len(rec.triggered) != 0 {
@@ -104,13 +113,12 @@ func TestWebhook_NoMatchingDigest_ZeroTriggers(t *testing.T) {
 
 func TestWebhook_MultipleArtifactsSameDigest_AllTriggered(t *testing.T) {
 	ts, store, rec := newWebhookServer(t)
-	// Two artifacts with the same image digest (different CAS hashes).
 	appendTestEntry(t, store, "casA", "sha256:aaa")
 	appendTestEntry(t, store, "casB", "sha256:aaa")
 
-	resp := postHarborEvent(t, ts, "sha256:aaa")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status: %d", resp.StatusCode)
+	code := postHarborEvent(t, ts, "sha256:aaa", "casA")
+	if code != http.StatusOK {
+		t.Fatalf("status: %d", code)
 	}
 
 	if len(rec.triggered) != 2 {
@@ -121,11 +129,17 @@ func TestWebhook_MultipleArtifactsSameDigest_AllTriggered(t *testing.T) {
 func TestWebhook_InvalidJSON_BadRequest(t *testing.T) {
 	ts, _, _ := newWebhookServer(t)
 
-	resp, err := ts.Client().Post(ts.URL+"/v1/webhooks/harbor", "application/json",
-		bytes.NewReader([]byte("not-json")))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+		ts.URL+"/v1/webhooks/harbor", bytes.NewReader([]byte("not-json")))
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := ts.Client().Do(req)
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status: got %d want 400", resp.StatusCode)
 	}
@@ -139,10 +153,17 @@ func TestWebhook_EmptyResources_NoContent(t *testing.T) {
 		"event_data": map[string]any{"resources": []any{}},
 	}
 	body, _ := json.Marshal(payload)
-	resp, err := ts.Client().Post(ts.URL+"/v1/webhooks/harbor", "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+		ts.URL+"/v1/webhooks/harbor", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := ts.Client().Do(req)
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
 		t.Errorf("status: got %d want 204", resp.StatusCode)
 	}

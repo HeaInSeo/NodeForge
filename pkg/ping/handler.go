@@ -1,5 +1,5 @@
 // Package ping implements the PingService gRPC handler.
-// Used in Phase 0 to verify NodeKit ↔ NodeForge gRPC connectivity.
+// Used in Phase 0 to verify NodeKit ↔ NodeVault gRPC connectivity.
 package ping
 
 import (
@@ -25,6 +25,6 @@ func (h *Handler) Ping(_ context.Context, req *nfv1.PingRequest) (*nfv1.PingResp
 	host, _ := os.Hostname()
 	return &nfv1.PingResponse{
 		Message:  "pong: " + req.GetMessage(),
-		ServerId: "NodeForge/" + host,
+		ServerId: "NodeVault/" + host,
 	}, nil
 }

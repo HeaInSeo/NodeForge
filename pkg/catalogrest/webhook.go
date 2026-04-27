@@ -59,11 +59,11 @@ func RegisterWebhook(mux *http.ServeMux, store *index.Store, trigger ReconcileTr
 		}
 
 		triggered := 0
-		for _, e := range entries {
-			if _, ok := digests[e.ImageDigest]; !ok {
+		for i := range entries {
+			if _, ok := digests[entries[i].ImageDigest]; !ok {
 				continue
 			}
-			if terr := trigger.ReconcileOne(r.Context(), e.CasHash); terr != nil {
+			if terr := trigger.ReconcileOne(r.Context(), entries[i].CasHash); terr != nil {
 				// Log but continue — other artifacts must still be processed.
 				_ = terr
 			}

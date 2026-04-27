@@ -75,6 +75,7 @@ func (s *Service) ListPolicies(_ context.Context, _ *nfv1.ListPoliciesRequest) (
 	version := info.ModTime().Format(time.RFC3339)
 
 	jsonPath := filepath.Join(filepath.Dir(s.wasmPath), "policies.json")
+	//nolint:gosec // G304: jsonPath is derived from operator-configured wasmPath.
 	raw, err := os.ReadFile(jsonPath)
 	if err != nil {
 		return nil, fmt.Errorf("read policies.json at %q: %w", jsonPath, err)

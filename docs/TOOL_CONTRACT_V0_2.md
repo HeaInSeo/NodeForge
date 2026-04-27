@@ -18,13 +18,13 @@
 
 | 필드 | 타입 | 출처 | 의미 |
 |------|------|------|------|
-| `cas_hash` | string | NodeForge 계산 | SHA256(spec JSON) — 파이프라인 toolRef pin |
+| `cas_hash` | string | NodeVault 계산 | SHA256(spec JSON) — 파이프라인 toolRef pin |
 | `tool_definition_id` | string | NodeKit | 작성 초안 식별자 |
 | `tool_name` | string | NodeKit | 툴 이름 (예: "bwa-mem2") |
 | `version` | string | NodeKit | 버전 (예: "2.2.1") |
-| `stable_ref` | string | NodeForge 조립 | `tool_name@version`. UI 검색 전용. |
+| `stable_ref` | string | NodeVault 조립 | `tool_name@version`. UI 검색 전용. |
 | `image_uri` | string | NodeKit | 베이스 이미지 URI (digest 포함 필수) |
-| `digest` | string | NodeForge | 빌드 결과 이미지 digest |
+| `digest` | string | NodeVault | 빌드 결과 이미지 digest |
 | `environment_spec` | string | NodeKit | conda/pip 환경 스펙 (선택) |
 | `command` | string | NodeKit | 컨테이너 진입점 (선택) |
 | `inputs` | PortSpec[] | NodeKit | 입력 포트 계약 |
@@ -32,8 +32,8 @@
 | `display` | DisplaySpec | NodeKit | UI 팔레트 표시 메타데이터 |
 | `lifecycle_phase` | string | NodeVault 명시적 호출 | `Pending` / `Active` / `Retracted` / `Deleted` |
 | `integrity_health` | string | reconcile loop | `Healthy` / `Partial` / `Missing` / `Unreachable` / `Orphaned` |
-| `validation` | ValidationStatus | NodeForge | L3/L4 검증 결과 |
-| `registered_at` | int64 | NodeForge | Unix timestamp (등록 시각) |
+| `validation` | ValidationStatus | NodeVault | L3/L4 검증 결과 |
+| `registered_at` | int64 | NodeVault | Unix timestamp (등록 시각) |
 
 ---
 
@@ -69,9 +69,9 @@
 ```
 NodeKit C# DTO (ToolDefinition)
     ↓  BuildRequest gRPC
-NodeForge Go (BuildService)
+NodeVault Go (BuildService)
     ↓  L2/L3/L4 통과 후
-NodeForge Go (ToolRegistryService.RegisterTool)
+NodeVault Go (ToolRegistryService.RegisterTool)
     ↓  CAS 저장 (assets/catalog/{casHash}.tooldefinition)
 RegisteredToolDefinition (v0.2 전체 필드 보존)
     ↓  ListTools / GetTool gRPC

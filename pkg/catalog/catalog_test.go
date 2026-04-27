@@ -16,14 +16,14 @@ func newTestCatalog(t *testing.T) *catalog.Catalog {
 	return catalog.NewCatalogAt(t.TempDir())
 }
 
-func newTestService(t *testing.T) (*catalog.ToolRegistryService, *catalog.Catalog) {
+func newTestService(t *testing.T) *catalog.ToolRegistryService {
 	t.Helper()
 	cat := newTestCatalog(t)
 	store, err := index.NewAt(t.TempDir())
 	if err != nil {
 		t.Fatalf("index.NewAt: %v", err)
 	}
-	return catalog.NewToolRegistryService(cat, store), cat
+	return catalog.NewToolRegistryService(cat, store)
 }
 
 // TestSave_SameContent_SameHash verifies that identical content produces the same CAS key.
@@ -116,7 +116,7 @@ func TestList_ReturnsAllSaved(t *testing.T) {
 
 // TestRegisterTool_CasHashPopulated verifies RegisterTool sets CasHash on the returned tool.
 func TestRegisterTool_CasHashPopulated(t *testing.T) {
-	svc, _ := newTestService(t)
+	svc := newTestService(t)
 
 	req := &nfv1.RegisterToolRequest{
 		RequestId:        "req-001",
@@ -159,7 +159,7 @@ func TestRegisterTool_CasHashPopulated(t *testing.T) {
 // TestListTools_AfterRegister verifies ListTools returns previously registered tools.
 // Each RegisterTool now writes exactly one file (SaveWithCasHash), so exactly N tools expected.
 func TestListTools_AfterRegister(t *testing.T) {
-	svc, _ := newTestService(t)
+	svc := newTestService(t)
 
 	for i, name := range []string{"star", "salmon"} {
 		_, err := svc.RegisterTool(t.Context(), &nfv1.RegisterToolRequest{
@@ -192,8 +192,10 @@ func TestListTools_AfterRegister(t *testing.T) {
 
 // TestRegisterTool_V02RoundTrip verifies that all v0.2 fields survive the
 // RegisterTool → GetTool round-trip through CAS storage.
+//
+//nolint:gocyclo // comprehensive field-by-field round-trip assertion — splitting would reduce readability.
 func TestRegisterTool_V02RoundTrip(t *testing.T) {
-	svc, _ := newTestService(t)
+	svc := newTestService(t)
 
 	req := &nfv1.RegisterToolRequest{
 		RequestId:        "req-v02",
@@ -329,7 +331,7 @@ func TestRegisterTool_SingleFilePerRegistration(t *testing.T) {
 // TestListTools_StableRefFilter verifies that ListTools(stable_ref=X) returns
 // only tools matching X and ignores others.
 func TestListTools_StableRefFilter(t *testing.T) {
-	svc, _ := newTestService(t)
+	svc := newTestService(t)
 
 	// Register two tools: bwa@1.0 and bowtie2@2.0
 	for _, tc := range []struct{ name, version string }{
@@ -368,7 +370,7 @@ func TestListTools_StableRefFilter(t *testing.T) {
 
 // TestListTools_ArtifactKindFilter verifies that artifact_kind filter works.
 func TestListTools_ArtifactKindFilter(t *testing.T) {
-	svc, _ := newTestService(t)
+	svc := newTestService(t)
 
 	// Register a tool (artifact_kind = "tool" by default)
 	if _, err := svc.RegisterTool(t.Context(), &nfv1.RegisterToolRequest{
@@ -400,7 +402,7 @@ func TestListTools_ArtifactKindFilter(t *testing.T) {
 
 // TestGetTool_NotFound verifies GetTool returns NotFound for unknown casHash.
 func TestGetTool_NotFound(t *testing.T) {
-	svc, _ := newTestService(t)
+	svc := newTestService(t)
 
 	_, err := svc.GetTool(t.Context(), &nfv1.GetToolRequest{CasHash: "nonexistent"})
 	if err == nil {
@@ -451,7 +453,7 @@ func TestRetractTool_TransitionsPhase(t *testing.T) {
 
 // TestRetractTool_NotFound verifies RetractTool returns NotFound for unknown casHash.
 func TestRetractTool_NotFound(t *testing.T) {
-	svc, _ := newTestService(t)
+	svc := newTestService(t)
 
 	_, err := svc.RetractTool(t.Context(), &nfv1.RetractToolRequest{CasHash: "nonexistent"})
 	if err == nil {
@@ -478,7 +480,8 @@ func TestDeleteTool_TransitionsPhase(t *testing.T) {
 	}
 
 	// Retract first (recommended sequence: Active → Retracted → Deleted).
-	if _, err := svc.RetractTool(t.Context(), &nfv1.RetractToolRequest{CasHash: reg.CasHash}); err != nil {
+	_, err = svc.RetractTool(t.Context(), &nfv1.RetractToolRequest{CasHash: reg.CasHash})
+	if err != nil {
 		t.Fatalf("RetractTool: %v", err)
 	}
 
@@ -525,12 +528,13 @@ func TestRetractTool_IntegrityHealthUnchanged(t *testing.T) {
 	}
 
 	// Manually set integrity_health to Partial (simulating reconcile observation).
-	if err := store.SetIntegrityHealth(reg.CasHash, index.HealthPartial); err != nil {
-		t.Fatalf("SetIntegrityHealth: %v", err)
+	if setErr := store.SetIntegrityHealth(reg.CasHash, index.HealthPartial); setErr != nil {
+		t.Fatalf("SetIntegrityHealth: %v", setErr)
 	}
 
 	// Retract — must NOT change integrity_health.
-	if _, err := svc.RetractTool(t.Context(), &nfv1.RetractToolRequest{CasHash: reg.CasHash}); err != nil {
+	_, err = svc.RetractTool(t.Context(), &nfv1.RetractToolRequest{CasHash: reg.CasHash})
+	if err != nil {
 		t.Fatalf("RetractTool: %v", err)
 	}
 

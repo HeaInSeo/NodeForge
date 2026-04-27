@@ -93,6 +93,8 @@ func (c *DataCatalog) Load(casHash string) (*nfv1.RegisteredDataDefinition, erro
 }
 
 // List reads all *.datadefinition files and returns the parsed definitions.
+//
+//nolint:dupl // DataCatalog.List and Catalog.List are intentionally parallel — same structure, different proto types.
 func (c *DataCatalog) List() ([]*nfv1.RegisteredDataDefinition, error) {
 	entries, err := os.ReadDir(c.dir)
 	if err != nil {
@@ -186,6 +188,8 @@ func (s *DataRegistryService) RegisterData(
 }
 
 // GetData retrieves a single RegisteredDataDefinition by its CAS hash.
+//
+//nolint:dupl // GetData and ToolRegistryService.GetTool are intentionally parallel — different proto types.
 func (s *DataRegistryService) GetData(
 	_ context.Context, req *nfv1.GetDataRequest,
 ) (*nfv1.RegisteredDataDefinition, error) {
@@ -219,14 +223,14 @@ func (s *DataRegistryService) ListData(
 	}
 
 	out := make([]*nfv1.RegisteredDataDefinition, 0, len(indexEntries))
-	for _, e := range indexEntries {
+	for i := range indexEntries {
 		// ListActive returns all kinds; filter to data only.
-		if e.ArtifactKind != index.KindData {
+		if indexEntries[i].ArtifactKind != index.KindData {
 			continue
 		}
-		d, loadErr := s.cat.Load(e.CasHash)
+		d, loadErr := s.cat.Load(indexEntries[i].CasHash)
 		if loadErr != nil {
-			fmt.Fprintf(os.Stderr, "datacatalog: load %s: %v\n", e.CasHash, loadErr)
+			fmt.Fprintf(os.Stderr, "datacatalog: load %s: %v\n", indexEntries[i].CasHash, loadErr)
 			continue
 		}
 		out = append(out, d)

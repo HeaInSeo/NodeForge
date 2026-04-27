@@ -96,7 +96,7 @@ func TestGetDigest_NoDigest_ReturnsError(t *testing.T) {
 }
 
 func TestGetDigest_ServerError(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer ts.Close()
@@ -119,7 +119,7 @@ func TestGetDigest_InvalidDestination(t *testing.T) {
 }
 
 func TestGetDigest_ContextCancelled(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// This handler should never be reached.
 		w.WriteHeader(http.StatusOK)
 	}))

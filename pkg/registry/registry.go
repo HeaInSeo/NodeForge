@@ -56,6 +56,7 @@ func (c *Client) GetDigest(ctx context.Context, destination string) (string, err
 		if err != nil {
 			return "", fmt.Errorf("registry GET %s: %w", url, err)
 		}
+		//nolint:gocritic // deferInLoop: body is closed at function return; loop is bounded to 3 iterations.
 		defer func() {
 			_ = resp.Body.Close()
 		}()

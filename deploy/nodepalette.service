@@ -1,0 +1,33 @@
+[Unit]
+Description=NodePalette (Catalog REST :8080)
+Documentation=https://github.com/HeaInSeo/NodeVault
+After=network-online.target nodevault.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nodevault
+Group=nodevault
+WorkingDirectory=/opt/nodevault
+
+ExecStart=/opt/nodevault/bin/nodepalette
+
+# ── 포트 설정 ─────────────────────────────────────────────────────────────────
+Environment=NODEPALETTE_ADDR=:8080
+
+# ── assets/ 공유 (NodeVault와 동일 경로) ─────────────────────────────────────
+Environment=INDEX_DIR=/opt/nodevault/assets/index
+Environment=CATALOG_DIR=/opt/nodevault/assets/catalog
+Environment=DATA_CATALOG_DIR=/opt/nodevault/assets/datacatalog
+
+# ── 재시작 정책 ───────────────────────────────────────────────────────────────
+Restart=on-failure
+RestartSec=5s
+
+# ── 로그 ──────────────────────────────────────────────────────────────────────
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nodepalette
+
+[Install]
+WantedBy=multi-user.target

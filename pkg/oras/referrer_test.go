@@ -57,7 +57,7 @@ func TestPushToolSpecReferrer_ValidationErrors(t *testing.T) {
 			}
 			if tc.wantErrSubstr != "" {
 				msg := err.Error()
-				if len(msg) == 0 {
+				if msg == "" {
 					t.Fatalf("error message is empty")
 				}
 				found := false

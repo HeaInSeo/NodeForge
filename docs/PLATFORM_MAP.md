@@ -51,7 +51,7 @@
 
 | 저장소 | 경로 | 언어 |
 |--------|------|------|
-| NodeForge | `/opt/go/src/github.com/HeaInSeo/NodeForge` | Go |
+| NodeVault | `/opt/go/src/github.com/HeaInSeo/NodeVault` | Go |
 | NodeKit | `/opt/dotnet/src/github.com/HeaInSeo/NodeKit` | C# / Avalonia |
 | DockGuard | `/opt/dotnet/src/github.com/HeaInSeo/DockGuard` | OPA/Rego |
 | DagEdit | `/opt/dotnet/src/github.com/HeaInSeo/DagEdit` | C# / Avalonia |
@@ -133,16 +133,16 @@ Deleted       혼합     Unreachable
 |------|------|
 | L1 정적 검증 + DockGuard 정책 | NodeKit `src/Validation/`, `src/Policy/` |
 | BuildRequest gRPC 전송 | NodeKit `GrpcBuildClient` |
-| L2 이미지 빌드 (podbridge5) | NodeForge `pkg/build` |
-| L3/L4 K8s dry-run / smoke | NodeForge `pkg/validate` |
-| CAS 파일 저장 | NodeForge `pkg/catalog` |
-| artifact index (이중 축 상태) | NodeForge `pkg/index` (15개 테스트 통과) |
+| L2 이미지 빌드 (podbridge5) | NodeVault `pkg/build` |
+| L3/L4 K8s dry-run / smoke | NodeVault `pkg/validate` |
+| CAS 파일 저장 | NodeVault `pkg/catalog` |
+| artifact index (이중 축 상태) | NodeVault `pkg/index` (15개 테스트 통과) |
 | NodePalette REST API | NodeVault `pkg/catalogrest` (향후 `cmd/palette/` 분리) |
 | AdminToolList REST 연동 | NodeKit `HttpCatalogClient` |
 | DockGuard 정책 번들 동적 로드 | NodeKit `GrpcPolicyBundleProvider` |
 | Harbor | seoy lab cluster, all components healthy |
-| reconcile loop (FastRun / SlowRun) | NodeForge `pkg/reconcile` (11개 테스트 통과) |
-| proto canonical source (go.work 없음) | NodeForge `protos/nodeforge/v1/` |
+| reconcile loop (FastRun / SlowRun) | NodeVault `pkg/reconcile` (11개 테스트 통과) |
+| proto canonical source (go.work 없음) | NodeVault `protos/nodeforge/v1/` |
 
 ### 미구현 (우선순위 순)
 
@@ -185,22 +185,22 @@ Deleted       혼합     Unreachable
 
 ## 상세 문서 링크
 
-### NodeForge
+### NodeVault
 
 | 문서 | 위치 | 내용 |
 |------|------|------|
-| ARCHITECTURE.md | `NodeForge/docs/` | NodeForge 컴포넌트 구조, 실제 구현 기준 |
-| NODEVAULT_TRANSITION_PLAN.md | `NodeForge/docs/` | **전체 TODO 목록 + 완료 현황** |
-| TOOL_CONTRACT_V0_2.md | `NodeForge/docs/` | RegisteredTool v0.2 확정 계약 |
-| INDEX_SCHEMA.md | `NodeForge/docs/` | index 스키마 + 이중 축 상태 모델 |
-| AUTHORITY_MAP.md | `NodeForge/docs/` | write authority 분리 설계 |
-| NONGOALS.md | `NodeForge/docs/` | 이번 버전에서 의도적으로 하지 않는 것 |
-| TOOL_NODE_SPEC.md | `NodeForge/docs/` | 툴 노드 YAML/JSON 5계층 현황 |
-| DEPLOY_IN_CLUSTER.md | `NodeForge/docs/` | K8s 배포 절차 |
-| PROTO_OWNERSHIP_SPRINT_PLAN.md | `NodeForge/docs/` | api-protos → NodeForge proto 이관 계획 |
-| CATALOG_CACHE_STRATEGY.md | `NodeForge/docs/` | Catalog 캐시 전략 |
-| SORI_INTEGRATION_BOUNDARY.md | `NodeForge/docs/` | sori 통합 경계 |
-| HARBOR_WEBHOOK_EVENTS.md | `NodeForge/docs/` | Harbor webhook 이벤트 목록 |
+| ARCHITECTURE.md | `NodeVault/docs/` | NodeVault 컴포넌트 구조, 실제 구현 기준 |
+| NODEVAULT_TRANSITION_PLAN.md | `NodeVault/docs/` | **전체 TODO 목록 + 완료 현황** |
+| TOOL_CONTRACT_V0_2.md | `NodeVault/docs/` | RegisteredTool v0.2 확정 계약 |
+| INDEX_SCHEMA.md | `NodeVault/docs/` | index 스키마 + 이중 축 상태 모델 |
+| AUTHORITY_MAP.md | `NodeVault/docs/` | write authority 분리 설계 |
+| NONGOALS.md | `NodeVault/docs/` | 이번 버전에서 의도적으로 하지 않는 것 |
+| TOOL_NODE_SPEC.md | `NodeVault/docs/` | 툴 노드 YAML/JSON 5계층 현황 |
+| DEPLOY_IN_CLUSTER.md | `NodeVault/docs/` | K8s 배포 절차 |
+| PROTO_OWNERSHIP_SPRINT_PLAN.md | `NodeVault/docs/` | api-protos → NodeVault proto 이관 계획 |
+| CATALOG_CACHE_STRATEGY.md | `NodeVault/docs/` | Catalog 캐시 전략 |
+| SORI_INTEGRATION_BOUNDARY.md | `NodeVault/docs/` | sori 통합 경계 |
+| HARBOR_WEBHOOK_EVENTS.md | `NodeVault/docs/` | Harbor webhook 이벤트 목록 |
 
 ### NodeKit
 

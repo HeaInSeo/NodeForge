@@ -18,13 +18,13 @@ type fakeChecker struct {
 	pullErr        error
 }
 
-func (f *fakeChecker) ImageExists(_ context.Context, _ string) (bool, error) {
+func (f *fakeChecker) ImageExists(_ context.Context, _, _ string) (bool, error) {
 	return f.imageExists, f.imageErr
 }
-func (f *fakeChecker) ReferrerExists(_ context.Context, _ string) (bool, error) {
+func (f *fakeChecker) ReferrerExists(_ context.Context, _, _ string) (bool, error) {
 	return f.referrerExists, f.referrerErr
 }
-func (f *fakeChecker) PullReachable(_ context.Context, _ string) (bool, error) {
+func (f *fakeChecker) PullReachable(_ context.Context, _, _ string) (bool, error) {
 	return f.pullReachable, f.pullErr
 }
 

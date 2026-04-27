@@ -33,7 +33,7 @@ sori (GitHub: HeaInSeo/sori)
 | MediaType 상수 | `MediaTypeToolSpec`, `MediaTypeDataSpec` |
 | 볼륨 인덱스 관리 | `volume-index.go` (NodeVault와 무관) |
 
-### NodeVault(NodeForge)가 소유하는 것
+### NodeVault(NodeVault)가 소유하는 것
 
 | 기능 | 설명 |
 |------|------|
@@ -55,7 +55,7 @@ sori (GitHub: HeaInSeo/sori)
 ## 3. 호출 방향
 
 ```
-NodeVault (NodeForge)
+NodeVault (NodeVault)
     │
     │  빌드 완료 후
     ├─► pkg/catalog.SaveWithCasHash()     ← CAS 저장
