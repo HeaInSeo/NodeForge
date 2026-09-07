@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	neturl "net/url"
 	"strings"
 
 	"github.com/HeaInSeo/sori"
@@ -24,6 +25,11 @@ const mediaTypeToolSpec = sori.MediaTypeToolSpec
 // subject with a pathological number of referrers cannot silently downgrade a
 // Healthy entry to Partial.
 const maxReferrerInspections = 32
+
+// maxReferrerPages bounds how many pages of a paginated referrers listing a
+// single ReferrerExists call will traverse. Outrunning it is reported as
+// indeterminate, never as a confirmed absence.
+const maxReferrerPages = 16
 
 // nodeVaultReferrerKinds is the set of semantic kinds NodeVault's producers emit.
 // A descriptor carrying one of them is decidable from the referrers index alone;
@@ -137,73 +143,132 @@ func (c *HarborChecker) ReferrerExists(ctx context.Context, imageRef, subjectDig
 	if err != nil {
 		return false, fmt.Errorf("referrer exists: %w", err)
 	}
-	url := fmt.Sprintf("%s://%s/v2/%s/referrers/%s", c.scheme, host, name, subjectDigest)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	pageURL := fmt.Sprintf("%s://%s/v2/%s/referrers/%s", c.scheme, host, name, subjectDigest)
+
+	budget := maxReferrerInspections
+	for page := 0; ; page++ {
+		if page == maxReferrerPages {
+			return false, fmt.Errorf(
+				"referrer exists %s: indeterminate: listing exceeds the %d page budget",
+				pageURL, maxReferrerPages)
+		}
+
+		descriptors, next, found, pageErr := c.referrerPage(ctx, pageURL)
+		if pageErr != nil {
+			return false, pageErr
+		}
+		if !found {
+			if page == 0 {
+				return false, nil // confirmed: the subject has no referrers
+			}
+			return false, fmt.Errorf(
+				"referrer exists %s: indeterminate: continuation page disappeared", pageURL)
+		}
+
+		// Decide everything that needs no extra round trip first, and collect the
+		// descriptors whose kind this listing does not reveal.
+		var undecidable []string
+		for i := range descriptors {
+			switch kind := descriptors[i].kind(); {
+			case kind == mediaTypeToolSpec:
+				return true, nil
+			case kind != "":
+				continue // a different NodeVault kind (e.g. ToolProfile): decided, not a match
+			case descriptors[i].Digest != "":
+				undecidable = append(undecidable, descriptors[i].Digest)
+			}
+		}
+
+		// Resolve legacy descriptors by reading each referrer manifest's
+		// config.mediaType. An indeterminate fetch aborts with an error rather than
+		// letting a legacy-but-valid spec referrer look absent.
+		for _, d := range undecidable {
+			if budget == 0 {
+				return false, fmt.Errorf(
+					"referrer exists %s: indeterminate: untyped referrers exceed the inspection budget of %d",
+					pageURL, maxReferrerInspections)
+			}
+			budget--
+			kind, kindErr := c.referrerKind(ctx, host, name, d)
+			if kindErr != nil {
+				return false, fmt.Errorf("referrer exists %s: %w", pageURL, kindErr)
+			}
+			if kind == mediaTypeToolSpec {
+				return true, nil
+			}
+		}
+
+		if next == "" {
+			return false, nil // every page read, no spec referrer: confirmed absence
+		}
+		pageURL = next
+	}
+}
+
+// referrerPage fetches one page of the referrers listing. found=false reports a
+// confirmed 404 (this subject has no referrers listing); next is the resolved
+// rel="next" URL, or "" when this is the last page.
+func (c *HarborChecker) referrerPage(
+	ctx context.Context, pageURL string,
+) (descriptors []referrerDescriptor, next string, found bool, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, http.NoBody)
 	if err != nil {
-		return false, fmt.Errorf("referrer exists: build request: %w", err)
+		return nil, "", false, fmt.Errorf("referrer exists: build request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.oci.image.index.v1+json")
 
 	resp, err := c.doWithAuthRetry(ctx, req)
 	if err != nil {
-		return false, fmt.Errorf("referrer exists GET %s: %w", url, err)
+		return nil, "", false, fmt.Errorf("referrer exists GET %s: %w", pageURL, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return false, nil
+		return nil, "", false, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("referrer exists GET %s: indeterminate status %d", url, resp.StatusCode)
+		return nil, "", false, fmt.Errorf(
+			"referrer exists GET %s: indeterminate status %d", pageURL, resp.StatusCode)
 	}
 
 	var idx struct {
 		Manifests []referrerDescriptor `json:"manifests"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&idx); err != nil {
-		return false, fmt.Errorf("referrer exists GET %s: decode response: %w", url, err)
+		return nil, "", false, fmt.Errorf("referrer exists GET %s: decode response: %w", pageURL, err)
 	}
+	return idx.Manifests, nextPageURL(pageURL, resp.Header.Get("Link")), true, nil
+}
 
-	// First pass: decide everything that needs no extra round trip, and collect
-	// the descriptors whose kind the index does not reveal.
-	var undecidable []string
-	for i := range idx.Manifests {
-		switch kind := idx.Manifests[i].kind(); {
-		case kind == mediaTypeToolSpec:
-			return true, nil
-		case kind != "":
-			continue // a different NodeVault kind (e.g. ToolProfile): decided, not a match
-		case idx.Manifests[i].Digest != "":
-			undecidable = append(undecidable, idx.Manifests[i].Digest)
+// nextPageURL extracts the rel="next" target from a Link header and resolves it
+// against the current page URL. It returns "" when there is no usable next link,
+// which the caller treats as "this was the last page".
+func nextPageURL(currentURL, link string) string {
+	for _, part := range strings.Split(link, ",") {
+		lo := strings.Index(part, "<")
+		hi := strings.Index(part, ">")
+		if lo < 0 || hi < lo {
+			continue
 		}
-	}
-	// Second pass: resolve legacy descriptors by reading each referrer manifest's
-	// config.mediaType. Any indeterminate fetch aborts with an error rather than
-	// letting a legacy-but-valid spec referrer look absent.
-	for i, d := range undecidable {
-		if i == maxReferrerInspections {
-			return false, fmt.Errorf(
-				"referrer exists GET %s: indeterminate: %d untyped referrers exceed the inspection budget of %d",
-				url, len(undecidable), maxReferrerInspections)
+		if !strings.Contains(strings.ToLower(part[hi:]), `rel="next"`) {
+			continue
 		}
-		kind, err := c.referrerKind(ctx, host, name, d)
+		base, err := neturl.Parse(currentURL)
 		if err != nil {
-			return false, fmt.Errorf("referrer exists GET %s: %w", url, err)
+			return ""
 		}
-		if kind == mediaTypeToolSpec {
-			return true, nil
+		ref, err := neturl.Parse(strings.TrimSpace(part[lo+1 : hi]))
+		if err != nil {
+			return ""
 		}
+		resolved := base.ResolveReference(ref)
+		// Never follow a redirect off the registry we were asked about.
+		if resolved.Host != base.Host || resolved.Scheme != base.Scheme {
+			return ""
+		}
+		return resolved.String()
 	}
-
-	// Nothing matched on this page. The referrers API may paginate, and the spec
-	// referrer could be on a page we did not read, so an unfollowed continuation
-	// is indeterminate rather than a confirmed absence.
-	if resp.Header.Get("Link") != "" {
-		return false, fmt.Errorf(
-			"referrer exists GET %s: indeterminate: no spec referrer on the first page and the listing is paginated",
-			url)
-	}
-	return false, nil
+	return ""
 }
 
 // referrerKind fetches a single referrer manifest and returns the semantic kind

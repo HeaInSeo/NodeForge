@@ -406,23 +406,89 @@ func TestReferrerExists_MatchBeforeBudget_WinsOverLargeListing(t *testing.T) {
 	}
 }
 
-func TestReferrerExists_PaginatedWithoutMatch_IsIndeterminateNotAbsent(t *testing.T) {
-	// The spec referrer may live on a page we did not follow; calling that a
-	// confirmed absence would write a false Partial.
+func TestReferrerExists_SpecOnSecondPage_IsFoundByTraversal(t *testing.T) {
+	// Codex P2: a ToolSpec descriptor on a later page must be found, not reported
+	// absent. Page 1 carries only a ToolProfile and a rel="next" link.
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Link", `</v2/library/tool/referrers/sha256:subject?n=1&last=x>; rel="next"`)
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("last") == "p1" {
+			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+			return
+		}
+		w.Header().Set("Link", `</v2/library/tool/referrers/sha256:subject?last=p1>; rel="next"`)
 		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
 	})
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
 	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("the spec referrer on page 2 must be found by following rel=\"next\"")
+	}
+}
+
+func TestReferrerExists_AllPagesReadNoMatch_IsConfirmedAbsence(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("last") == "p1" {
+			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:other","artifactType":"application/vnd.nodevault.dataspec.v1+json"}]}`))
+			return
+		}
+		w.Header().Set("Link", `</v2/library/tool/referrers/sha256:subject?last=p1>; rel="next"`)
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("exhausting the listing is a confirmed absence, not an error: %v", err)
+	}
+	if ok {
+		t.Error("expected ok=false once every page is read without a spec referrer")
+	}
+}
+
+func TestReferrerExists_UnboundedPagination_IsIndeterminateNotAbsent(t *testing.T) {
+	// A registry that always advertises another page must not be walked forever,
+	// and giving up must not look like a confirmed absence.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `</v2/library/tool/referrers/sha256:subject?last=x>; rel="next"`)
+		_, _ = w.Write([]byte(`{"manifests":[]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
 	if err == nil {
-		t.Fatal("an unfollowed next page must be indeterminate, not a confirmed absence")
+		t.Fatal("outrunning the page budget must be indeterminate, not a confirmed absence")
 	}
 	if ok {
 		t.Error("expected ok=false alongside the error")
+	}
+}
+
+func TestReferrerExists_NextLinkOffHost_IsNotFollowed(t *testing.T) {
+	// A Link pointing at another host must not redirect the check off the registry
+	// we were asked about; with no usable continuation this page is the last one.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `<http://attacker.example/v2/library/tool/referrers/sha256:subject>; rel="next"`)
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("expected ok=false")
 	}
 }
 
