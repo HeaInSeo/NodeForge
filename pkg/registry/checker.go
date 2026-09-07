@@ -145,6 +145,13 @@ func (c *HarborChecker) ReferrerExists(ctx context.Context, imageRef, subjectDig
 	}
 	pageURL := fmt.Sprintf("%s://%s/v2/%s/referrers/%s", c.scheme, host, name, subjectDigest)
 
+	// deferred holds the first indeterminate outcome met while resolving untyped
+	// referrers. It is not returned immediately: a later descriptor may still be a
+	// readable ToolSpec, and positive evidence outranks an unrelated artifact we
+	// could not read. It is returned only if the walk ends without a match, so an
+	// unreadable neighbor can never become a confirmed absence.
+	var deferred error
+
 	budget := maxReferrerInspections
 	for page := 0; ; page++ {
 		if page == maxReferrerPages {
@@ -165,44 +172,75 @@ func (c *HarborChecker) ReferrerExists(ctx context.Context, imageRef, subjectDig
 				"referrer exists %s: indeterminate: continuation page disappeared", pageURL)
 		}
 
-		// Decide everything that needs no extra round trip first, and collect the
-		// descriptors whose kind this listing does not reveal.
-		var undecidable []string
-		for i := range descriptors {
-			switch kind := descriptors[i].kind(); {
-			case kind == mediaTypeToolSpec:
-				return true, nil
-			case kind != "":
-				continue // a different NodeVault kind (e.g. ToolProfile): decided, not a match
-			case descriptors[i].Digest != "":
-				undecidable = append(undecidable, descriptors[i].Digest)
-			}
+		matched, pageDeferred := c.scanPage(ctx, host, name, pageURL, descriptors, &budget)
+		if matched {
+			return true, nil
 		}
-
-		// Resolve legacy descriptors by reading each referrer manifest's
-		// config.mediaType. An indeterminate fetch aborts with an error rather than
-		// letting a legacy-but-valid spec referrer look absent.
-		for _, d := range undecidable {
-			if budget == 0 {
-				return false, fmt.Errorf(
-					"referrer exists %s: indeterminate: untyped referrers exceed the inspection budget of %d",
-					pageURL, maxReferrerInspections)
-			}
-			budget--
-			kind, kindErr := c.referrerKind(ctx, host, name, d)
-			if kindErr != nil {
-				return false, fmt.Errorf("referrer exists %s: %w", pageURL, kindErr)
-			}
-			if kind == mediaTypeToolSpec {
-				return true, nil
-			}
+		if deferred == nil {
+			deferred = pageDeferred
 		}
 
 		if next == "" {
-			return false, nil // every page read, no spec referrer: confirmed absence
+			break
 		}
 		pageURL = next
 	}
+
+	// The whole listing was walked without finding a spec referrer. That is a
+	// confirmed absence only if nothing was left unread.
+	if deferred != nil {
+		return false, deferred
+	}
+	return false, nil
+}
+
+// scanPage looks for the spec referrer among one page's descriptors. Typed
+// descriptors are decided from the listing; the rest are resolved with manifest
+// fetches drawn from the shared budget.
+//
+// A non-nil second return is an indeterminate outcome met on this page — an
+// unreadable descriptor, or a spent budget. It is advisory: the caller keeps
+// walking, because positive evidence elsewhere outranks a descriptor that could
+// not be read, and only falls back to it if the whole listing yields no match.
+func (c *HarborChecker) scanPage(
+	ctx context.Context, host, name, pageURL string, descriptors []referrerDescriptor, budget *int,
+) (bool, error) {
+	var (
+		undecidable []string
+		deferred    error
+	)
+	for i := range descriptors {
+		switch kind := descriptors[i].kind(); {
+		case kind == mediaTypeToolSpec:
+			return true, nil
+		case kind != "":
+			continue // a different NodeVault kind (e.g. ToolProfile): decided, not a match
+		case descriptors[i].Digest != "":
+			undecidable = append(undecidable, descriptors[i].Digest)
+		}
+	}
+	for _, d := range undecidable {
+		if *budget == 0 {
+			if deferred == nil {
+				deferred = fmt.Errorf(
+					"referrer exists %s: indeterminate: untyped referrers exceed the inspection budget of %d",
+					pageURL, maxReferrerInspections)
+			}
+			break
+		}
+		*budget--
+		kind, kindErr := c.referrerKind(ctx, host, name, d)
+		if kindErr != nil {
+			if deferred == nil {
+				deferred = fmt.Errorf("referrer exists %s: %w", pageURL, kindErr)
+			}
+			continue
+		}
+		if kind == mediaTypeToolSpec {
+			return true, nil
+		}
+	}
+	return false, deferred
 }
 
 // referrerPage fetches one page of the referrers listing. found=false reports a

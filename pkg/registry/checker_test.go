@@ -596,3 +596,87 @@ func TestReferrerExists_BareRelNext_IsTraversed(t *testing.T) {
 		t.Error("an unquoted rel=next continuation must be traversed")
 	}
 }
+
+func TestReferrerExists_UnreadableNeighbourBeforeSpec_StillFindsSpec(t *testing.T) {
+	// A persistent 5xx on an unrelated artifact must not stop the walk before the
+	// readable ToolSpec that follows it, or FastRun could never recognize it.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[` +
+			`{"digest":"sha256:broken","artifactType":"application/vnd.oci.image.manifest.v1+json"},` +
+			`{"digest":"sha256:spec","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:broken", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:spec", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("an unreadable unrelated referrer must not mask a readable ToolSpec: %v", err)
+	}
+	if !ok {
+		t.Error("expected the ToolSpec after the failing descriptor to be found")
+	}
+}
+
+func TestReferrerExists_UnreadableNeighbourAndNoSpec_IsIndeterminate(t *testing.T) {
+	// Same failure, but nothing else matches: the unread descriptor could have
+	// been the ToolSpec, so this must stay indeterminate rather than absent.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[` +
+			`{"digest":"sha256:broken","artifactType":"application/vnd.oci.image.manifest.v1+json"},` +
+			`{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:broken", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err == nil {
+		t.Fatal("an unread descriptor must keep the outcome indeterminate, not absent")
+	}
+	if ok {
+		t.Error("expected ok=false alongside the error")
+	}
+}
+
+func TestReferrerExists_BudgetSpentThenTypedSpecOnNextPage_IsFound(t *testing.T) {
+	// Exhausting the fetch budget must not abandon the walk: a typed ToolSpec on a
+	// later page needs no fetch at all.
+	descs := make([]string, 0, maxReferrerInspections+1)
+	for i := 0; i <= maxReferrerInspections; i++ {
+		descs = append(descs, fmt.Sprintf(
+			`{"digest":"sha256:d%d","artifactType":"application/vnd.oci.image.manifest.v1+json"}`, i))
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("last") == secondPageMarker {
+			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+			return
+		}
+		w.Header().Set("Link", fmt.Sprintf(
+			`</v2/library/tool/referrers/sha256:subject?last=%s>; rel="next"`, secondPageMarker))
+		_, _ = fmt.Fprintf(w, `{"manifests":[%s]}`, strings.Join(descs, ","))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.example.other.v1+json"}}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("a typed ToolSpec on a later page must be found even after the fetch budget is spent")
+	}
+}
