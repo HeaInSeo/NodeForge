@@ -224,14 +224,15 @@ func (c *HarborChecker) scanPage(
 	for i := range descriptors {
 		kind, decided := descriptors[i].kind()
 		switch {
-		case decided && kind == mediaTypeToolSpec && descriptors[i].Digest != "":
+		case decided && kind == mediaTypeToolSpec && descriptorDigestPattern.MatchString(descriptors[i].Digest):
 			return true, nil
 		case decided && kind == mediaTypeToolSpec:
-			// Claims to be the spec referrer but names no manifest: malformed, and
-			// too weak to prove Healthy.
+			// Claims to be the spec referrer but identifies no manifest: malformed,
+			// and too weak to prove Healthy.
 			if deferred == nil {
 				deferred = fmt.Errorf(
-					"referrer exists %s: indeterminate: ToolSpec descriptor carries no digest", pageURL)
+					"referrer exists %s: indeterminate: ToolSpec descriptor carries no usable digest (%q)",
+					pageURL, descriptors[i].Digest)
 			}
 		case decided:
 			continue // some other kind (ToolProfile, or foreign): settled, not a match
@@ -312,13 +313,20 @@ func (c *HarborChecker) referrerPage(
 	}
 
 	var idx struct {
-		Manifests []referrerDescriptor `json:"manifests"`
+		// A pointer distinguishes an explicitly empty listing, which is real absence
+		// evidence, from a response that omits the field or sends null — those carry
+		// no evidence at all and must not be read as "no referrers".
+		Manifests *[]referrerDescriptor `json:"manifests"`
 	}
 	if decErr := json.NewDecoder(resp.Body).Decode(&idx); decErr != nil {
 		return referrerListing{}, fmt.Errorf("referrer exists GET %s: decode response: %w", pageURL, decErr)
 	}
+	if idx.Manifests == nil {
+		return referrerListing{}, fmt.Errorf(
+			"referrer exists GET %s: indeterminate: response omits the manifests array", pageURL)
+	}
 
-	listing := referrerListing{descriptors: idx.Manifests, found: true}
+	listing := referrerListing{descriptors: *idx.Manifests, found: true}
 	next, nextErr := nextPageURL(pageURL, resp.Header.Values("Link"))
 	if nextErr != nil {
 		listing.nextErr = fmt.Errorf("referrer exists GET %s: indeterminate: %w", pageURL, nextErr)

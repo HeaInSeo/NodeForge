@@ -901,3 +901,64 @@ func TestReferrerExists_MalformedDescriptorDigest_IsIndeterminate(t *testing.T) 
 		t.Errorf("a malformed digest should not be fetched at all; got %d fetches", fetched)
 	}
 }
+
+func TestReferrerExists_TypedToolSpecMalformedDigest_IsIndeterminate(t *testing.T) {
+	// A typed ToolSpec descriptor still has to identify a manifest; a malformed
+	// digest identifies nothing and must not prove Healthy.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"not-a-digest","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if ok {
+		t.Error("a ToolSpec descriptor with a malformed digest must not prove the spec referrer exists")
+	}
+	if err == nil {
+		t.Error("expected an indeterminate error")
+	}
+}
+
+func TestReferrerExists_ResponseOmittingManifests_IsIndeterminate(t *testing.T) {
+	for _, tc := range []struct{ name, body string }{
+		{"empty object", `{}`},
+		{"null manifests", `{"manifests":null}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mux := http.NewServeMux()
+			mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(tc.body))
+			})
+			ts := httptest.NewServer(mux)
+			defer ts.Close()
+
+			ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+			if err == nil {
+				t.Fatal("a response carrying no manifests array is not absence evidence")
+			}
+			if ok {
+				t.Error("expected ok=false alongside the error")
+			}
+		})
+	}
+}
+
+func TestReferrerExists_ExplicitlyEmptyManifests_IsConfirmedAbsence(t *testing.T) {
+	// The counterpart: an explicit empty array IS valid absence evidence.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("an explicit empty listing is a confirmed absence: %v", err)
+	}
+	if ok {
+		t.Error("expected ok=false")
+	}
+}
