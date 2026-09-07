@@ -36,23 +36,19 @@ var nodeVaultReferrerKinds = map[string]bool{
 	sori.MediaTypeSecurityScan: true,
 }
 
-// referrerDescriptor is one entry of an OCI referrers index response.
+// referrerDescriptor is one entry of an OCI referrers index response. An index
+// descriptor carries no config, so artifactType is the only kind evidence the
+// listing itself can offer.
 type referrerDescriptor struct {
 	Digest       string `json:"digest"`
 	ArtifactType string `json:"artifactType"`
-	Config       struct {
-		MediaType string `json:"mediaType"`
-	} `json:"config"`
 }
 
 // kind returns the NodeVault semantic referrer kind this descriptor proves, or ""
-// when the index alone cannot decide it.
+// when the listing alone cannot decide it.
 func (d *referrerDescriptor) kind() string {
 	if nodeVaultReferrerKinds[d.ArtifactType] {
 		return d.ArtifactType
-	}
-	if nodeVaultReferrerKinds[d.Config.MediaType] {
-		return d.Config.MediaType
 	}
 	return ""
 }
@@ -121,7 +117,7 @@ func (c *HarborChecker) ImageExists(ctx context.Context, imageRef, digest string
 // Two descriptor shapes are recognized:
 //
 //   - Typed: the referrers-index descriptor already carries the semantic kind in
-//     artifactType (or surfaces the referrer config's mediaType).
+//     artifactType.
 //   - Legacy: sori's current push path packs every referrer with a generic
 //     image-manifest artifactType and records the semantic kind only in the
 //     referrer manifest's config.mediaType. Those artifacts are valid, so each
@@ -181,19 +177,15 @@ func (c *HarborChecker) ReferrerExists(ctx context.Context, imageRef, subjectDig
 			undecidable = append(undecidable, idx.Manifests[i].Digest)
 		}
 	}
-	if len(undecidable) == 0 {
-		return false, nil
-	}
-	if len(undecidable) > maxReferrerInspections {
-		return false, fmt.Errorf(
-			"referrer exists GET %s: indeterminate: %d untyped referrers exceed the inspection budget of %d",
-			url, len(undecidable), maxReferrerInspections)
-	}
-
 	// Second pass: resolve legacy descriptors by reading each referrer manifest's
 	// config.mediaType. Any indeterminate fetch aborts with an error rather than
 	// letting a legacy-but-valid spec referrer look absent.
-	for _, d := range undecidable {
+	for i, d := range undecidable {
+		if i == maxReferrerInspections {
+			return false, fmt.Errorf(
+				"referrer exists GET %s: indeterminate: %d untyped referrers exceed the inspection budget of %d",
+				url, len(undecidable), maxReferrerInspections)
+		}
 		kind, err := c.referrerKind(ctx, host, name, d)
 		if err != nil {
 			return false, fmt.Errorf("referrer exists GET %s: %w", url, err)
@@ -201,6 +193,15 @@ func (c *HarborChecker) ReferrerExists(ctx context.Context, imageRef, subjectDig
 		if kind == mediaTypeToolSpec {
 			return true, nil
 		}
+	}
+
+	// Nothing matched on this page. The referrers API may paginate, and the spec
+	// referrer could be on a page we did not read, so an unfollowed continuation
+	// is indeterminate rather than a confirmed absence.
+	if resp.Header.Get("Link") != "" {
+		return false, fmt.Errorf(
+			"referrer exists GET %s: indeterminate: no spec referrer on the first page and the listing is paginated",
+			url)
 	}
 	return false, nil
 }
