@@ -217,6 +217,14 @@ func (c *HarborChecker) scanPage(
 			continue // a different NodeVault kind (e.g. ToolProfile): decided, not a match
 		case descriptors[i].Digest != "":
 			undecidable = append(undecidable, descriptors[i].Digest)
+		default:
+			// Untyped and with no digest to fetch: its kind can never be established,
+			// so it must not be counted as a nonmatch.
+			if deferred == nil {
+				deferred = fmt.Errorf(
+					"referrer exists %s: indeterminate: untyped referrer descriptor carries no digest to inspect",
+					pageURL)
+			}
 		}
 	}
 	for _, d := range undecidable {
@@ -398,7 +406,9 @@ func defaultedPort(u *neturl.URL) string {
 //
 // A confirmed 404 returns ("", nil): the descriptor was listed but the manifest
 // is already gone, so it is not the spec referrer we are looking for. Every other
-// non-200 is indeterminate and returns an error.
+// non-200 is indeterminate and returns an error, as does a manifest that declares
+// neither a recognized artifactType nor a config.mediaType — that identifies
+// nothing, and must not be mistaken for a nonmatch.
 func (c *HarborChecker) referrerKind(ctx context.Context, host, name, digest string) (string, error) {
 	url := fmt.Sprintf("%s://%s/v2/%s/manifests/%s", c.scheme, host, name, digest)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
@@ -431,6 +441,12 @@ func (c *HarborChecker) referrerKind(ctx context.Context, host, name, digest str
 	}
 	if nodeVaultReferrerKinds[m.ArtifactType] {
 		return m.ArtifactType, nil
+	}
+	if m.Config.MediaType == "" {
+		// Neither field identifies the artifact, so nothing was learned. Reporting
+		// this as a nonmatch would let an unidentified referrer look like absence.
+		return "", fmt.Errorf(
+			"referrer kind GET %s: indeterminate: manifest declares no artifactType and no config.mediaType", url)
 	}
 	return m.Config.MediaType, nil
 }

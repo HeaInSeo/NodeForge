@@ -708,3 +708,64 @@ func TestReferrerExists_NextInLaterLinkField_IsTraversed(t *testing.T) {
 		t.Error("a continuation advertised in a later Link field must still be followed")
 	}
 }
+
+func TestReferrerExists_UntypedDescriptorWithoutDigest_IsIndeterminate(t *testing.T) {
+	// Nothing can ever identify this descriptor, so it must not be counted as a
+	// nonmatch and turned into a confirmed absence.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err == nil {
+		t.Fatal("a descriptor with no digest to inspect must be indeterminate, not a nonmatch")
+	}
+	if ok {
+		t.Error("expected ok=false alongside the error")
+	}
+}
+
+func TestReferrerExists_ManifestWithoutAnyKind_IsIndeterminate(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:blank","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:blank", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err == nil {
+		t.Fatal("a manifest identifying no kind must be indeterminate, not a nonmatch")
+	}
+	if ok {
+		t.Error("expected ok=false alongside the error")
+	}
+}
+
+func TestReferrerExists_ManifestWithForeignKind_IsCleanNonmatch(t *testing.T) {
+	// A referrer that identifies itself as something else IS determined, so the
+	// listing can still end in a confirmed absence.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:foreign","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:foreign", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.example.sbom.v1+json"}}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("an identified foreign artifact is a determined nonmatch: %v", err)
+	}
+	if ok {
+		t.Error("expected ok=false")
+	}
+}
