@@ -333,9 +333,9 @@ func stubRegistry(t *testing.T, specMediaType string) (host string) {
 		w.WriteHeader(http.StatusOK)
 	})
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:ref","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:3333333333333333333333333333333333333333333333333333333333333333","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:ref", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:3333333333333333333333333333333333333333333333333333333333333333", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprintf(w, `{"config":{"mediaType":%q}}`, specMediaType)
 	})
 	ts := httptest.NewServer(mux)

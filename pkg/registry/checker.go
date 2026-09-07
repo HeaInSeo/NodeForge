@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	neturl "net/url"
+	"regexp"
 	"strings"
 
 	"github.com/HeaInSeo/sori"
@@ -30,6 +31,12 @@ const maxReferrerInspections = 32
 // single ReferrerExists call will traverse. Outrunning it is reported as
 // indeterminate, never as a confirmed absence.
 const maxReferrerPages = 16
+
+// descriptorDigestPattern is the OCI digest grammar, algorithm ":" encoded. A
+// descriptor digest that does not match cannot be fetched meaningfully — the
+// request would 404 and masquerade as a clean nonmatch — so it is treated as
+// unusable rather than inspected.
+var descriptorDigestPattern = regexp.MustCompile(`^[a-z0-9]+(?:[.+_-][a-z0-9]+)*:[a-zA-Z0-9=_-]{32,}$`)
 
 // legacyGenericArtifactType is the artifactType sori's current push path stamps
 // on every referrer regardless of kind. It identifies nothing, so it is the only
@@ -228,15 +235,17 @@ func (c *HarborChecker) scanPage(
 			}
 		case decided:
 			continue // some other kind (ToolProfile, or foreign): settled, not a match
-		case descriptors[i].Digest != "":
+		case descriptorDigestPattern.MatchString(descriptors[i].Digest):
 			undecidable = append(undecidable, descriptors[i].Digest)
 		default:
-			// Untyped and with no digest to fetch: its kind can never be established,
-			// so it must not be counted as a nonmatch.
+			// Untyped, with no usable digest to fetch: its kind can never be
+			// established, so it must not be counted as a nonmatch. A malformed
+			// digest is as unusable as an absent one — fetching it would just 404
+			// and masquerade as a clean nonmatch.
 			if deferred == nil {
 				deferred = fmt.Errorf(
-					"referrer exists %s: indeterminate: untyped referrer descriptor carries no digest to inspect",
-					pageURL)
+					"referrer exists %s: indeterminate: untyped referrer descriptor carries no usable digest (%q)",
+					pageURL, descriptors[i].Digest)
 			}
 		}
 	}

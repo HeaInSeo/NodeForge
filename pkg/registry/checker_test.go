@@ -175,7 +175,7 @@ func referrerExists(t *testing.T, host string) (bool, error) {
 
 func TestReferrerExists_TypedToolSpecDescriptor_IsHealthyEvidence(t *testing.T) {
 	host, _ := referrerFixture(t, map[string]string{
-		"spec": `{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}`,
+		"spec": `{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.nodevault.toolspec.v1+json"}`,
 	}, nil)
 
 	ok, err := referrerExists(t, host)
@@ -192,9 +192,9 @@ func TestReferrerExists_LegacyToolSpec_IsRecognizedViaConfigMediaType(t *testing
 	// records the real kind in config.mediaType. Such an artifact is valid and must
 	// not be reported absent just because the producer wire format is not migrated.
 	host, calls := referrerFixture(t, map[string]string{
-		"spec": `{"digest":"sha256:spec","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
+		"spec": `{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
 	}, map[string]string{
-		"sha256:spec": `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`,
+		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`,
 	})
 
 	ok, err := referrerExists(t, host)
@@ -214,9 +214,9 @@ func TestReferrerExists_ToolProfileOnly_IsNotHealthyEvidence(t *testing.T) {
 	// attaches to the same subject digest, so counting any referrer made a tool
 	// whose ToolSpec push failed reconcile to Healthy.
 	host, _ := referrerFixture(t, map[string]string{
-		"profile": `{"digest":"sha256:profile","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
+		"profile": `{"digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
 	}, map[string]string{
-		"sha256:profile": `{"config":{"mediaType":"application/vnd.nodevault.toolprofile.v1+json"}}`,
+		"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": `{"config":{"mediaType":"application/vnd.nodevault.toolprofile.v1+json"}}`,
 	})
 
 	ok, err := referrerExists(t, host)
@@ -230,9 +230,9 @@ func TestReferrerExists_ToolProfileOnly_IsNotHealthyEvidence(t *testing.T) {
 
 func TestReferrerExists_TypedToolProfile_IsDecidedWithoutFetch(t *testing.T) {
 	host, calls := referrerFixture(t, map[string]string{
-		"profile": `{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}`,
+		"profile": `{"digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}`,
 	}, map[string]string{
-		"sha256:profile": `{"config":{"mediaType":"application/vnd.nodevault.toolprofile.v1+json"}}`,
+		"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": `{"config":{"mediaType":"application/vnd.nodevault.toolprofile.v1+json"}}`,
 	})
 
 	ok, err := referrerExists(t, host)
@@ -249,9 +249,9 @@ func TestReferrerExists_TypedToolProfile_IsDecidedWithoutFetch(t *testing.T) {
 
 func TestReferrerExists_UnrelatedReferrerOnly_IsNotHealthyEvidence(t *testing.T) {
 	host, _ := referrerFixture(t, map[string]string{
-		"other": `{"digest":"sha256:other","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
+		"other": `{"digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
 	}, map[string]string{
-		"sha256:other": `{"config":{"mediaType":"application/vnd.example.something-else.v1+json"}}`,
+		"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc": `{"config":{"mediaType":"application/vnd.example.something-else.v1+json"}}`,
 	})
 
 	ok, err := referrerExists(t, host)
@@ -265,11 +265,11 @@ func TestReferrerExists_UnrelatedReferrerOnly_IsNotHealthyEvidence(t *testing.T)
 
 func TestReferrerExists_SpecAlongsideProfile_IsHealthyEvidence(t *testing.T) {
 	host, _ := referrerFixture(t, map[string]string{
-		"profile": `{"digest":"sha256:profile","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
-		"spec":    `{"digest":"sha256:spec","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
+		"profile": `{"digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
+		"spec":    `{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
 	}, map[string]string{
-		"sha256:profile": `{"config":{"mediaType":"application/vnd.nodevault.toolprofile.v1+json"}}`,
-		"sha256:spec":    `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`,
+		"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": `{"config":{"mediaType":"application/vnd.nodevault.toolprofile.v1+json"}}`,
+		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`,
 	})
 
 	ok, err := referrerExists(t, host)
@@ -298,9 +298,9 @@ func TestReferrerExists_ManifestFetch5xx_IsIndeterminateNotAbsent(t *testing.T) 
 	// here would write a false Partial over a possibly-Healthy entry.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:spec", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	})
 	ts := httptest.NewServer(mux)
@@ -319,9 +319,9 @@ func TestReferrerExists_ManifestFetch5xx_IsIndeterminateNotAbsent(t *testing.T) 
 func TestReferrerExists_ManifestFetch401_IsIndeterminateNotAbsent(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:spec", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", func(w http.ResponseWriter, _ *http.Request) {
 		// No WWW-Authenticate -> no usable challenge -> the 401 passes through.
 		w.WriteHeader(http.StatusUnauthorized)
 	})
@@ -342,7 +342,7 @@ func TestReferrerExists_InspectionBudgetExceeded_IsIndeterminateNotAbsent(t *tes
 	descs := make([]string, 0, maxReferrerInspections+1)
 	for i := 0; i <= maxReferrerInspections; i++ {
 		descs = append(descs, fmt.Sprintf(
-			`{"digest":"sha256:d%d","artifactType":"application/vnd.oci.image.manifest.v1+json"}`, i))
+			`{"digest":"sha256:%064d","artifactType":"application/vnd.oci.image.manifest.v1+json"}`, i))
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
@@ -366,9 +366,9 @@ func TestReferrerExists_VanishedReferrer_IsNotAnError(t *testing.T) {
 	// not an infrastructure failure.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:gone","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:gone", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	})
 	ts := httptest.NewServer(mux)
@@ -387,16 +387,16 @@ func TestReferrerExists_VanishedReferrer_IsNotAnError(t *testing.T) {
 func TestReferrerExists_MatchBeforeBudget_WinsOverLargeListing(t *testing.T) {
 	// The budget bounds fetches, so a spec referrer resolved before the budget is
 	// spent must still be reported present even when the listing is oversized.
-	descs := []string{`{"digest":"sha256:spec","artifactType":"application/vnd.oci.image.manifest.v1+json"}`}
+	descs := []string{`{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.oci.image.manifest.v1+json"}`}
 	for i := 0; i <= maxReferrerInspections; i++ {
 		descs = append(descs, fmt.Sprintf(
-			`{"digest":"sha256:d%d","artifactType":"application/vnd.oci.image.manifest.v1+json"}`, i))
+			`{"digest":"sha256:%064d","artifactType":"application/vnd.oci.image.manifest.v1+json"}`, i))
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprintf(w, `{"manifests":[%s]}`, strings.Join(descs, ","))
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:spec", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`))
 	})
 	ts := httptest.NewServer(mux)
@@ -417,12 +417,12 @@ func TestReferrerExists_SpecOnSecondPage_IsFoundByTraversal(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("last") == secondPageMarker {
-			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
 			return
 		}
 		w.Header().Set("Link", fmt.Sprintf(
 			`</v2/library/tool/referrers/sha256:subject?last=%s>; rel="next"`, secondPageMarker))
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
 	})
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
@@ -440,12 +440,12 @@ func TestReferrerExists_AllPagesReadNoMatch_IsConfirmedAbsence(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("last") == secondPageMarker {
-			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:other","artifactType":"application/vnd.nodevault.dataspec.v1+json"}]}`))
+			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","artifactType":"application/vnd.nodevault.dataspec.v1+json"}]}`))
 			return
 		}
 		w.Header().Set("Link", fmt.Sprintf(
 			`</v2/library/tool/referrers/sha256:subject?last=%s>; rel="next"`, secondPageMarker))
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
 	})
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
@@ -486,7 +486,7 @@ func TestReferrerExists_NextLinkOffHost_IsIndeterminateNotAbsent(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Link", `<http://attacker.example/v2/library/tool/referrers/sha256:subject>; rel="next"`)
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
 	})
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
@@ -506,14 +506,14 @@ func TestReferrerExists_NextLinkSameOriginDifferentSpelling_IsFollowed(t *testin
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("last") == secondPageMarker {
-			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
 			return
 		}
 		host, port, _ := net.SplitHostPort(r.Host)
 		w.Header().Set("Link", fmt.Sprintf(
 			`<http://%s:%s/v2/library/tool/referrers/sha256:subject?last=%s>; rel="next"`,
 			strings.ToUpper(host), port, secondPageMarker))
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
 	})
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
@@ -531,7 +531,7 @@ func TestReferrerExists_PaginatedWithMatchOnFirstPage_IsHealthyEvidence(t *testi
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Link", `</v2/library/tool/referrers/sha256:subject?n=1&last=x>; rel="next"`)
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
 	})
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
@@ -595,12 +595,12 @@ func TestReferrerExists_BareRelNext_IsTraversed(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("last") == secondPageMarker {
-			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
 			return
 		}
 		w.Header().Set("Link", fmt.Sprintf(
 			`</v2/library/tool/referrers/sha256:subject?last=%s>; rel=next`, secondPageMarker))
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
 	})
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
@@ -620,13 +620,13 @@ func TestReferrerExists_UnreadableNeighbourBeforeSpec_StillFindsSpec(t *testing.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"manifests":[` +
-			`{"digest":"sha256:broken","artifactType":"application/vnd.oci.image.manifest.v1+json"},` +
-			`{"digest":"sha256:spec","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+			`{"digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111","artifactType":"application/vnd.oci.image.manifest.v1+json"},` +
+			`{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:broken", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:1111111111111111111111111111111111111111111111111111111111111111", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:spec", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`))
 	})
 	ts := httptest.NewServer(mux)
@@ -647,10 +647,10 @@ func TestReferrerExists_UnreadableNeighbourAndNoSpec_IsIndeterminate(t *testing.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"manifests":[` +
-			`{"digest":"sha256:broken","artifactType":"application/vnd.oci.image.manifest.v1+json"},` +
-			`{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+			`{"digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111","artifactType":"application/vnd.oci.image.manifest.v1+json"},` +
+			`{"digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:broken", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:1111111111111111111111111111111111111111111111111111111111111111", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	})
 	ts := httptest.NewServer(mux)
@@ -671,12 +671,12 @@ func TestReferrerExists_BudgetSpentThenTypedSpecOnNextPage_IsFound(t *testing.T)
 	descs := make([]string, 0, maxReferrerInspections+1)
 	for i := 0; i <= maxReferrerInspections; i++ {
 		descs = append(descs, fmt.Sprintf(
-			`{"digest":"sha256:d%d","artifactType":"application/vnd.oci.image.manifest.v1+json"}`, i))
+			`{"digest":"sha256:%064d","artifactType":"application/vnd.oci.image.manifest.v1+json"}`, i))
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("last") == secondPageMarker {
-			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
 			return
 		}
 		w.Header().Set("Link", fmt.Sprintf(
@@ -704,13 +704,13 @@ func TestReferrerExists_NextInLaterLinkField_IsTraversed(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("last") == secondPageMarker {
-			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
 			return
 		}
 		w.Header().Add("Link", `</v2/library/tool/referrers/sha256:subject>; rel="prev"`)
 		w.Header().Add("Link", fmt.Sprintf(
 			`</v2/library/tool/referrers/sha256:subject?last=%s>; rel="next"`, secondPageMarker))
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
 	})
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
@@ -746,9 +746,9 @@ func TestReferrerExists_UntypedDescriptorWithoutDigest_IsIndeterminate(t *testin
 func TestReferrerExists_ManifestWithoutAnyKind_IsIndeterminate(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:blank","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:blank", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{}`))
 	})
 	ts := httptest.NewServer(mux)
@@ -768,9 +768,9 @@ func TestReferrerExists_ManifestWithForeignKind_IsCleanNonmatch(t *testing.T) {
 	// listing can still end in a confirmed absence.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:foreign","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:foreign", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.example.sbom.v1+json"}}`))
 	})
 	ts := httptest.NewServer(mux)
@@ -810,7 +810,7 @@ func TestReferrerExists_SpecOnPageWithUnusableContinuation_IsFound(t *testing.T)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Link", `<http://attacker.example/v2/next>; rel="next"`)
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
 	})
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
@@ -831,9 +831,9 @@ func TestReferrerExists_ForeignTypedDescriptor_IsSettledWithoutFetch(t *testing.
 	fetched := 0
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:foreign","artifactType":"application/vnd.cncf.notary.signature"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","artifactType":"application/vnd.cncf.notary.signature"}]}`))
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:foreign", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", func(w http.ResponseWriter, _ *http.Request) {
 		fetched++
 		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`))
 	})
@@ -858,9 +858,9 @@ func TestReferrerKind_ForeignManifestArtifactType_WinsOverConfig(t *testing.T) {
 	// generic value.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:mixed","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:2222222222222222222222222222222222222222222222222222222222222222","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:mixed", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:2222222222222222222222222222222222222222222222222222222222222222", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"artifactType":"application/vnd.cncf.notary.signature","config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`))
 	})
 	ts := httptest.NewServer(mux)
@@ -872,5 +872,32 @@ func TestReferrerKind_ForeignManifestArtifactType_WinsOverConfig(t *testing.T) {
 	}
 	if ok {
 		t.Error("a manifest declaring a foreign artifactType must not match on its config mediaType")
+	}
+}
+
+func TestReferrerExists_MalformedDescriptorDigest_IsIndeterminate(t *testing.T) {
+	// A syntactically invalid digest cannot be fetched meaningfully — the request
+	// would 404 and look like a clean nonmatch — so it must stay indeterminate.
+	fetched := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"not-a-digest","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/not-a-digest", func(w http.ResponseWriter, _ *http.Request) {
+		fetched++
+		w.WriteHeader(http.StatusNotFound)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err == nil {
+		t.Fatal("a malformed descriptor digest must be indeterminate, not a confirmed absence")
+	}
+	if ok {
+		t.Error("expected ok=false alongside the error")
+	}
+	if fetched != 0 {
+		t.Errorf("a malformed digest should not be fetched at all; got %d fetches", fetched)
 	}
 }
