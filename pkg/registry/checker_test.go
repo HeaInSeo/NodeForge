@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -127,6 +128,10 @@ func TestHarborChecker_PullReachable_200_ReturnsTrue(t *testing.T) {
 		t.Error("expected ok=true for 200")
 	}
 }
+
+// secondPageMarker is the query value the paginating stubs use to mark the
+// continuation page.
+const secondPageMarker = "p1"
 
 // ── ReferrerExists: spec-type honesty ─────────────────────────────────────────
 //
@@ -411,11 +416,12 @@ func TestReferrerExists_SpecOnSecondPage_IsFoundByTraversal(t *testing.T) {
 	// absent. Page 1 carries only a ToolProfile and a rel="next" link.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("last") == "p1" {
+		if r.URL.Query().Get("last") == secondPageMarker {
 			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
 			return
 		}
-		w.Header().Set("Link", `</v2/library/tool/referrers/sha256:subject?last=p1>; rel="next"`)
+		w.Header().Set("Link", fmt.Sprintf(
+			`</v2/library/tool/referrers/sha256:subject?last=%s>; rel="next"`, secondPageMarker))
 		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
 	})
 	ts := httptest.NewServer(mux)
@@ -433,11 +439,12 @@ func TestReferrerExists_SpecOnSecondPage_IsFoundByTraversal(t *testing.T) {
 func TestReferrerExists_AllPagesReadNoMatch_IsConfirmedAbsence(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("last") == "p1" {
+		if r.URL.Query().Get("last") == secondPageMarker {
 			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:other","artifactType":"application/vnd.nodevault.dataspec.v1+json"}]}`))
 			return
 		}
-		w.Header().Set("Link", `</v2/library/tool/referrers/sha256:subject?last=p1>; rel="next"`)
+		w.Header().Set("Link", fmt.Sprintf(
+			`</v2/library/tool/referrers/sha256:subject?last=%s>; rel="next"`, secondPageMarker))
 		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
 	})
 	ts := httptest.NewServer(mux)
@@ -472,9 +479,10 @@ func TestReferrerExists_UnboundedPagination_IsIndeterminateNotAbsent(t *testing.
 	}
 }
 
-func TestReferrerExists_NextLinkOffHost_IsNotFollowed(t *testing.T) {
-	// A Link pointing at another host must not redirect the check off the registry
-	// we were asked about; with no usable continuation this page is the last one.
+func TestReferrerExists_NextLinkOffHost_IsIndeterminateNotAbsent(t *testing.T) {
+	// A continuation pointing at another host must not be followed, but refusing it
+	// must not be reported as the end of the listing either — the spec referrer may
+	// be on the page we declined to read.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Link", `<http://attacker.example/v2/library/tool/referrers/sha256:subject>; rel="next"`)
@@ -484,11 +492,38 @@ func TestReferrerExists_NextLinkOffHost_IsNotFollowed(t *testing.T) {
 	defer ts.Close()
 
 	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("an advertised but unfollowable continuation must be indeterminate, not a confirmed absence")
 	}
 	if ok {
-		t.Error("expected ok=false")
+		t.Error("expected ok=false alongside the error")
+	}
+}
+
+func TestReferrerExists_NextLinkSameOriginDifferentSpelling_IsFollowed(t *testing.T) {
+	// Uppercased host and an explicitly spelled default port denote the same
+	// origin; rejecting them would turn a readable continuation into an error.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("last") == secondPageMarker {
+			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+			return
+		}
+		host, port, _ := net.SplitHostPort(r.Host)
+		w.Header().Set("Link", fmt.Sprintf(
+			`<http://%s:%s/v2/library/tool/referrers/sha256:subject?last=%s>; rel="next"`,
+			strings.ToUpper(host), port, secondPageMarker))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("an equivalent origin spelled differently must still be followed: %v", err)
+	}
+	if !ok {
+		t.Error("expected the spec referrer on the continuation page to be found")
 	}
 }
 

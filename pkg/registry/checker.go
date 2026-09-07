@@ -234,16 +234,25 @@ func (c *HarborChecker) referrerPage(
 	var idx struct {
 		Manifests []referrerDescriptor `json:"manifests"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&idx); err != nil {
-		return nil, "", false, fmt.Errorf("referrer exists GET %s: decode response: %w", pageURL, err)
+	if decErr := json.NewDecoder(resp.Body).Decode(&idx); decErr != nil {
+		return nil, "", false, fmt.Errorf("referrer exists GET %s: decode response: %w", pageURL, decErr)
 	}
-	return idx.Manifests, nextPageURL(pageURL, resp.Header.Get("Link")), true, nil
+	next, err = nextPageURL(pageURL, resp.Header.Get("Link"))
+	if err != nil {
+		return nil, "", false, fmt.Errorf("referrer exists GET %s: indeterminate: %w", pageURL, err)
+	}
+	return idx.Manifests, next, true, nil
 }
 
 // nextPageURL extracts the rel="next" target from a Link header and resolves it
-// against the current page URL. It returns "" when there is no usable next link,
-// which the caller treats as "this was the last page".
-func nextPageURL(currentURL, link string) string {
+// against the current page URL.
+//
+// ("", nil) means no continuation was advertised, so the caller may treat the
+// current page as the last one. A non-nil error means a continuation WAS
+// advertised but cannot be followed — off-origin, or unparseable. That is
+// indeterminate, not the end of the listing: reporting it as the last page would
+// let an unread continuation become a false confirmed absence.
+func nextPageURL(currentURL, link string) (string, error) {
 	for _, part := range strings.Split(link, ",") {
 		lo := strings.Index(part, "<")
 		hi := strings.Index(part, ">")
@@ -255,20 +264,42 @@ func nextPageURL(currentURL, link string) string {
 		}
 		base, err := neturl.Parse(currentURL)
 		if err != nil {
-			return ""
+			return "", fmt.Errorf("resolve next page against %q: %w", currentURL, err)
 		}
 		ref, err := neturl.Parse(strings.TrimSpace(part[lo+1 : hi]))
 		if err != nil {
-			return ""
+			return "", fmt.Errorf("parse advertised next page link: %w", err)
 		}
 		resolved := base.ResolveReference(ref)
-		// Never follow a redirect off the registry we were asked about.
-		if resolved.Host != base.Host || resolved.Scheme != base.Scheme {
-			return ""
+		// Never follow a continuation off the registry we were asked about, but do
+		// not silently treat that refusal as the end of the listing either.
+		if !sameOrigin(base, resolved) {
+			return "", fmt.Errorf(
+				"advertised next page %q is not on the same origin as %q", resolved.Redacted(), base.Redacted())
 		}
-		return resolved.String()
+		return resolved.String(), nil
 	}
-	return ""
+	return "", nil
+}
+
+// sameOrigin compares scheme/host/port, treating host case and an omitted
+// default port as equivalent so an equivalent origin spelled differently is not
+// mistaken for a cross-origin redirect.
+func sameOrigin(a, b *neturl.URL) bool {
+	return strings.EqualFold(a.Scheme, b.Scheme) &&
+		strings.EqualFold(a.Hostname(), b.Hostname()) &&
+		defaultedPort(a) == defaultedPort(b)
+}
+
+// defaultedPort returns u's explicit port, or the default port for its scheme.
+func defaultedPort(u *neturl.URL) string {
+	if p := u.Port(); p != "" {
+		return p
+	}
+	if strings.EqualFold(u.Scheme, "https") {
+		return "443"
+	}
+	return "80"
 }
 
 // referrerKind fetches a single referrer manifest and returns the semantic kind
