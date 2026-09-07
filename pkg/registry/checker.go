@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	neturl "net/url"
-	"regexp"
 	"strings"
+
+	godigest "github.com/opencontainers/go-digest"
 
 	"github.com/HeaInSeo/sori"
 
@@ -32,11 +33,14 @@ const maxReferrerInspections = 32
 // indeterminate, never as a confirmed absence.
 const maxReferrerPages = 16
 
-// descriptorDigestPattern is the OCI digest grammar, algorithm ":" encoded. A
-// descriptor digest that does not match cannot be fetched meaningfully — the
-// request would 404 and masquerade as a clean nonmatch — so it is treated as
-// unusable rather than inspected.
-var descriptorDigestPattern = regexp.MustCompile(`^[a-z0-9]+(?:[.+_-][a-z0-9]+)*:[a-zA-Z0-9=_-]{32,}$`)
+// usableDigest reports whether a descriptor digest can identify a manifest.
+// Validation is delegated to the canonical parser so the encoding and length are
+// checked against the named algorithm — a shape-only check would still accept
+// e.g. "sha256:" plus 64 non-hex characters. An unusable digest is never
+// fetched: the request would 404 and masquerade as a clean nonmatch.
+func usableDigest(d string) bool {
+	return godigest.Digest(d).Validate() == nil
+}
 
 // legacyGenericArtifactType is the artifactType sori's current push path stamps
 // on every referrer regardless of kind. It identifies nothing, so it is the only
@@ -224,7 +228,7 @@ func (c *HarborChecker) scanPage(
 	for i := range descriptors {
 		kind, decided := descriptors[i].kind()
 		switch {
-		case decided && kind == mediaTypeToolSpec && descriptorDigestPattern.MatchString(descriptors[i].Digest):
+		case decided && kind == mediaTypeToolSpec && usableDigest(descriptors[i].Digest):
 			return true, nil
 		case decided && kind == mediaTypeToolSpec:
 			// Claims to be the spec referrer but identifies no manifest: malformed,
@@ -236,7 +240,7 @@ func (c *HarborChecker) scanPage(
 			}
 		case decided:
 			continue // some other kind (ToolProfile, or foreign): settled, not a match
-		case descriptorDigestPattern.MatchString(descriptors[i].Digest):
+		case usableDigest(descriptors[i].Digest):
 			undecidable = append(undecidable, descriptors[i].Digest)
 		default:
 			// Untyped, with no usable digest to fetch: its kind can never be
@@ -327,7 +331,13 @@ func (c *HarborChecker) referrerPage(
 	}
 
 	listing := referrerListing{descriptors: *idx.Manifests, found: true}
-	next, nextErr := nextPageURL(pageURL, resp.Header.Values("Link"))
+	// Resolve against the URL the response actually came from: a redirect would
+	// otherwise make a relative continuation resolve against the wrong directory.
+	base := pageURL
+	if resp.Request != nil && resp.Request.URL != nil {
+		base = resp.Request.URL.String()
+	}
+	next, nextErr := nextPageURL(base, resp.Header.Values("Link"))
 	if nextErr != nil {
 		listing.nextErr = fmt.Errorf("referrer exists GET %s: indeterminate: %w", pageURL, nextErr)
 	}

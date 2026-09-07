@@ -996,3 +996,71 @@ func TestNextPageURL_MalformedEntryWithoutNextRelation_IsIgnored(t *testing.T) {
 		t.Errorf("nextPageURL = %q, want \"\"", got)
 	}
 }
+
+func TestReferrerExists_AlgorithmInvalidDigest_IsIndeterminate(t *testing.T) {
+	// Shape alone is not enough: "sha256:" followed by 64 non-hex characters has
+	// the right form but cannot identify a manifest.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"manifests":[{"digest":"sha256:%s","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`,
+			strings.Repeat("z", 64))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if ok {
+		t.Error("a digest with non-hex encoding must not prove the spec referrer exists")
+	}
+	if err == nil {
+		t.Error("expected an indeterminate error")
+	}
+}
+
+func TestReferrerExists_ShortDigest_IsIndeterminate(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"manifests":[{"digest":"sha256:%s","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`,
+			strings.Repeat("a", 32))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if ok {
+		t.Error("a sha256 digest of the wrong length must not prove the spec referrer exists")
+	}
+	if err == nil {
+		t.Error("expected an indeterminate error")
+	}
+}
+
+func TestReferrerExists_RelativeNextAfterRedirect_ResolvesAgainstFinalURL(t *testing.T) {
+	// The client follows a redirect into /mirror/, and the page there advertises a
+	// relative continuation. Resolving against the pre-redirect URL would point at
+	// the wrong directory and miss the ToolSpec.
+	spec := "sha256:" + strings.Repeat("a", 64)
+	profile := "sha256:" + strings.Repeat("b", 64)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/mirror/referrers", http.StatusTemporaryRedirect)
+	})
+	mux.HandleFunc("/mirror/referrers", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("last") == secondPageMarker {
+			_, _ = fmt.Fprintf(w, `{"manifests":[{"digest":%q,"artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`, spec)
+			return
+		}
+		w.Header().Set("Link", fmt.Sprintf(`<referrers?last=%s>; rel="next"`, secondPageMarker))
+		_, _ = fmt.Fprintf(w, `{"manifests":[{"digest":%q,"artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`, profile)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("a relative continuation must resolve against the post-redirect URL")
+	}
+}
