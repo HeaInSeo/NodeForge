@@ -253,20 +253,20 @@ func (c *HarborChecker) referrerPage(
 // indeterminate, not the end of the listing: reporting it as the last page would
 // let an unread continuation become a false confirmed absence.
 func nextPageURL(currentURL, link string) (string, error) {
-	for _, part := range strings.Split(link, ",") {
-		lo := strings.Index(part, "<")
-		hi := strings.Index(part, ">")
+	for _, entry := range splitLinkEntries(link) {
+		lo := strings.Index(entry, "<")
+		hi := strings.Index(entry, ">")
 		if lo < 0 || hi < lo {
 			continue
 		}
-		if !strings.Contains(strings.ToLower(part[hi:]), `rel="next"`) {
+		if !hasNextRelation(entry[hi+1:]) {
 			continue
 		}
 		base, err := neturl.Parse(currentURL)
 		if err != nil {
 			return "", fmt.Errorf("resolve next page against %q: %w", currentURL, err)
 		}
-		ref, err := neturl.Parse(strings.TrimSpace(part[lo+1 : hi]))
+		ref, err := neturl.Parse(strings.TrimSpace(entry[lo+1 : hi]))
 		if err != nil {
 			return "", fmt.Errorf("parse advertised next page link: %w", err)
 		}
@@ -280,6 +280,55 @@ func nextPageURL(currentURL, link string) (string, error) {
 		return resolved.String(), nil
 	}
 	return "", nil
+}
+
+// splitLinkEntries splits a Link header into its comma-separated entries without
+// breaking on a comma inside a <...> target or inside a quoted parameter value.
+func splitLinkEntries(link string) []string {
+	var (
+		entries []string
+		buf     strings.Builder
+		inAngle bool
+		inQuote bool
+	)
+	for _, r := range link {
+		switch {
+		case r == '"':
+			inQuote = !inQuote
+		case inQuote:
+		case r == '<':
+			inAngle = true
+		case r == '>':
+			inAngle = false
+		case r == ',' && !inAngle:
+			entries = append(entries, buf.String())
+			buf.Reset()
+			continue
+		}
+		buf.WriteRune(r)
+	}
+	if strings.TrimSpace(buf.String()) != "" {
+		entries = append(entries, buf.String())
+	}
+	return entries
+}
+
+// hasNextRelation reports whether a Link entry's parameter section declares the
+// "next" relation. Per RFC 8288 the value may be quoted or bare, relation names
+// are case-insensitive, and a single rel may list several space-separated types.
+func hasNextRelation(params string) bool {
+	for _, param := range strings.Split(params, ";") {
+		key, value, ok := strings.Cut(param, "=")
+		if !ok || !strings.EqualFold(strings.TrimSpace(key), "rel") {
+			continue
+		}
+		for _, rel := range strings.Fields(strings.Trim(strings.TrimSpace(value), `"`)) {
+			if strings.EqualFold(rel, "next") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // sameOrigin compares scheme/host/port, treating host case and an omitted
