@@ -275,47 +275,51 @@ func (c *HarborChecker) referrerPage(
 	if decErr := json.NewDecoder(resp.Body).Decode(&idx); decErr != nil {
 		return nil, "", false, fmt.Errorf("referrer exists GET %s: decode response: %w", pageURL, decErr)
 	}
-	next, err = nextPageURL(pageURL, resp.Header.Get("Link"))
+	next, err = nextPageURL(pageURL, resp.Header.Values("Link"))
 	if err != nil {
 		return nil, "", false, fmt.Errorf("referrer exists GET %s: indeterminate: %w", pageURL, err)
 	}
 	return idx.Manifests, next, true, nil
 }
 
-// nextPageURL extracts the rel="next" target from a Link header and resolves it
-// against the current page URL.
+// nextPageURL extracts the rel="next" target from the response's Link header
+// fields and resolves it against the current page URL. Every field is examined,
+// not just the first: a registry may send several Link fields and put the
+// continuation in a later one.
 //
 // ("", nil) means no continuation was advertised, so the caller may treat the
 // current page as the last one. A non-nil error means a continuation WAS
 // advertised but cannot be followed — off-origin, or unparseable. That is
 // indeterminate, not the end of the listing: reporting it as the last page would
 // let an unread continuation become a false confirmed absence.
-func nextPageURL(currentURL, link string) (string, error) {
-	for _, entry := range splitLinkEntries(link) {
-		lo := strings.Index(entry, "<")
-		hi := strings.Index(entry, ">")
-		if lo < 0 || hi < lo {
-			continue
+func nextPageURL(currentURL string, links []string) (string, error) {
+	for _, link := range links {
+		for _, entry := range splitLinkEntries(link) {
+			lo := strings.Index(entry, "<")
+			hi := strings.Index(entry, ">")
+			if lo < 0 || hi < lo {
+				continue
+			}
+			if !hasNextRelation(entry[hi+1:]) {
+				continue
+			}
+			base, err := neturl.Parse(currentURL)
+			if err != nil {
+				return "", fmt.Errorf("resolve next page against %q: %w", currentURL, err)
+			}
+			ref, err := neturl.Parse(strings.TrimSpace(entry[lo+1 : hi]))
+			if err != nil {
+				return "", fmt.Errorf("parse advertised next page link: %w", err)
+			}
+			resolved := base.ResolveReference(ref)
+			// Never follow a continuation off the registry we were asked about, but do
+			// not silently treat that refusal as the end of the listing either.
+			if !sameOrigin(base, resolved) {
+				return "", fmt.Errorf(
+					"advertised next page %q is not on the same origin as %q", resolved.Redacted(), base.Redacted())
+			}
+			return resolved.String(), nil
 		}
-		if !hasNextRelation(entry[hi+1:]) {
-			continue
-		}
-		base, err := neturl.Parse(currentURL)
-		if err != nil {
-			return "", fmt.Errorf("resolve next page against %q: %w", currentURL, err)
-		}
-		ref, err := neturl.Parse(strings.TrimSpace(entry[lo+1 : hi]))
-		if err != nil {
-			return "", fmt.Errorf("parse advertised next page link: %w", err)
-		}
-		resolved := base.ResolveReference(ref)
-		// Never follow a continuation off the registry we were asked about, but do
-		// not silently treat that refusal as the end of the listing either.
-		if !sameOrigin(base, resolved) {
-			return "", fmt.Errorf(
-				"advertised next page %q is not on the same origin as %q", resolved.Redacted(), base.Redacted())
-		}
-		return resolved.String(), nil
 	}
 	return "", nil
 }

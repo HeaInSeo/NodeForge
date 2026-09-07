@@ -548,27 +548,29 @@ func TestReferrerExists_PaginatedWithMatchOnFirstPage_IsHealthyEvidence(t *testi
 func TestNextPageURL_RelationSpellings(t *testing.T) {
 	const current = "http://reg.example/v2/library/tool/referrers/sha256:subject"
 	for _, tc := range []struct {
-		name string
-		link string
-		want string
+		name  string
+		links []string
+		want  string
 	}{
-		{"quoted", `</v2/next>; rel="next"`, "http://reg.example/v2/next"},
-		{"bare", `</v2/next>; rel=next`, "http://reg.example/v2/next"},
-		{"uppercase", `</v2/next>; rel=NEXT`, "http://reg.example/v2/next"},
-		{"relation list", `</v2/next>; rel="prev next"`, "http://reg.example/v2/next"},
-		{"spaced equals", `</v2/next>; rel = next`, "http://reg.example/v2/next"},
-		{"other relation only", `</v2/prev>; rel="prev"`, ""},
-		{"no link header", ``, ""},
-		{"comma inside target", `</v2/n,ext>; rel=next`, "http://reg.example/v2/n,ext"},
-		{"second entry is next", `</v2/prev>; rel="prev", </v2/next>; rel="next"`, "http://reg.example/v2/next"},
+		{"quoted", []string{`</v2/next>; rel="next"`}, "http://reg.example/v2/next"},
+		{"bare", []string{`</v2/next>; rel=next`}, "http://reg.example/v2/next"},
+		{"uppercase", []string{`</v2/next>; rel=NEXT`}, "http://reg.example/v2/next"},
+		{"relation list", []string{`</v2/next>; rel="prev next"`}, "http://reg.example/v2/next"},
+		{"spaced equals", []string{`</v2/next>; rel = next`}, "http://reg.example/v2/next"},
+		{"other relation only", []string{`</v2/prev>; rel="prev"`}, ""},
+		{"no link header", []string{``}, ""},
+		{"comma inside target", []string{`</v2/n,ext>; rel=next`}, "http://reg.example/v2/n,ext"},
+		{"second entry is next", []string{`</v2/prev>; rel="prev", </v2/next>; rel="next"`}, "http://reg.example/v2/next"},
+		{"next in a later Link field", []string{`</v2/prev>; rel="prev"`, `</v2/next>; rel="next"`}, "http://reg.example/v2/next"},
+		{"no next across fields", []string{`</v2/prev>; rel="prev"`, `</v2/first>; rel="first"`}, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := nextPageURL(current, tc.link)
+			got, err := nextPageURL(current, tc.links)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if got != tc.want {
-				t.Errorf("nextPageURL(%q) = %q, want %q", tc.link, got, tc.want)
+				t.Errorf("nextPageURL(%q) = %q, want %q", tc.links, got, tc.want)
 			}
 		})
 	}
@@ -678,5 +680,31 @@ func TestReferrerExists_BudgetSpentThenTypedSpecOnNextPage_IsFound(t *testing.T)
 	}
 	if !ok {
 		t.Error("a typed ToolSpec on a later page must be found even after the fetch budget is spent")
+	}
+}
+
+func TestReferrerExists_NextInLaterLinkField_IsTraversed(t *testing.T) {
+	// The continuation arrives in a second Link header field; reading only the
+	// first would report a confirmed absence for a ToolSpec that does exist.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("last") == secondPageMarker {
+			_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+			return
+		}
+		w.Header().Add("Link", `</v2/library/tool/referrers/sha256:subject>; rel="prev"`)
+		w.Header().Add("Link", fmt.Sprintf(
+			`</v2/library/tool/referrers/sha256:subject?last=%s>; rel="next"`, secondPageMarker))
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("a continuation advertised in a later Link field must still be followed")
 	}
 }
