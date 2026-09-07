@@ -39,7 +39,11 @@ type RegistryChecker interface {
 	// ImageExists checks whether a manifest with the given digest exists in the registry.
 	ImageExists(ctx context.Context, imageRef, digest string) (bool, error)
 
-	// ReferrerExists checks whether a spec referrer artifact attached to the subject image exists.
+	// ReferrerExists checks whether the expected spec referrer artifact is attached
+	// to the subject image. Implementations must decide this by the referrer's exact
+	// semantic kind: other referrer kinds attached to the same subject digest — a
+	// ToolProfile referrer in particular — must not report the spec referrer present,
+	// because HealthPartial is defined as "image OK, spec referrer missing".
 	ReferrerExists(ctx context.Context, imageRef, subjectDigest string) (bool, error)
 
 	// PullReachable checks whether the image can actually be pulled (slow check).

@@ -2,10 +2,16 @@ package reconcile_test
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/HeaInSeo/NodeVault/pkg/index"
 	"github.com/HeaInSeo/NodeVault/pkg/reconcile"
+	"github.com/HeaInSeo/NodeVault/pkg/registry"
+	"github.com/HeaInSeo/NodeVault/pkg/registryconfig"
 )
 
 // fakeChecker implements RegistryChecker for tests.
@@ -308,5 +314,79 @@ func TestFastRun_MultipleArtifacts_EachUpdated(t *testing.T) {
 		if e.IntegrityHealth != index.HealthPartial {
 			t.Errorf("%s: want Partial, got %q", hash, e.IntegrityHealth)
 		}
+	}
+}
+
+// ── End-to-end spec-type honesty (real HarborChecker, stub registry) ──────────
+//
+// The fakes above pin judgeHealth's mapping; these two pin the whole path —
+// index entry → registry evidence → integrity_health — against a stub registry,
+// so a regression in what counts as spec-referrer evidence surfaces as the wrong
+// health verdict rather than only as a helper-level failure.
+
+// stubRegistry serves an image manifest plus a referrers index whose sole
+// referrer carries specMediaType in its config, the way sori pushes today.
+func stubRegistry(t *testing.T, specMediaType string) (host string) {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:ref","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:ref", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"config":{"mediaType":%q}}`, specMediaType)
+	})
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+	return strings.TrimPrefix(ts.URL, "http://")
+}
+
+func healthAfterFastRun(t *testing.T, specMediaType string) index.IntegrityHealth {
+	t.Helper()
+	host := stubRegistry(t, specMediaType)
+
+	store := newTestStore(t)
+	if err := store.Append(index.Entry{
+		CasHash:         "e2e",
+		ArtifactKind:    index.KindTool,
+		StableRef:       "tool@1",
+		ImageRef:        host + "/library/tool:latest",
+		ImageDigest:     "sha256:img",
+		LifecyclePhase:  index.PhaseActive,
+		IntegrityHealth: index.HealthHealthy,
+	}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	checker, err := registry.NewHarborChecker(registryconfig.Config{Scheme: "http"})
+	if err != nil {
+		t.Fatalf("NewHarborChecker: %v", err)
+	}
+	if runErr := reconcile.New(store, checker).FastRun(context.Background()); runErr != nil {
+		t.Fatalf("FastRun: %v", runErr)
+	}
+	e, err := store.GetByCasHash("e2e")
+	if err != nil {
+		t.Fatalf("GetByCasHash: %v", err)
+	}
+	return e.IntegrityHealth
+}
+
+func TestFastRun_ToolProfileReferrerAlone_IsPartialNotHealthy(t *testing.T) {
+	got := healthAfterFastRun(t, "application/vnd.nodevault.toolprofile.v1+json")
+	if got == index.HealthHealthy {
+		t.Fatal("image + ToolProfile referrer only must not reconcile to Healthy")
+	}
+	if got != index.HealthPartial {
+		t.Errorf("integrity_health = %q, want %q (image present, spec referrer missing)", got, index.HealthPartial)
+	}
+}
+
+func TestFastRun_LegacyToolSpecReferrer_IsHealthy(t *testing.T) {
+	got := healthAfterFastRun(t, "application/vnd.nodevault.toolspec.v1+json")
+	if got != index.HealthHealthy {
+		t.Errorf("integrity_health = %q, want %q for a legacy-typed ToolSpec referrer", got, index.HealthHealthy)
 	}
 }

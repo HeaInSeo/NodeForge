@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -124,5 +125,256 @@ func TestHarborChecker_PullReachable_200_ReturnsTrue(t *testing.T) {
 	}
 	if !ok {
 		t.Error("expected ok=true for 200")
+	}
+}
+
+// ── ReferrerExists: spec-type honesty ─────────────────────────────────────────
+//
+// IntegrityHealth=Healthy claims the expected ToolSpec spec referrer was observed.
+// These tests pin that claim to the exact semantic kind: a ToolProfile referrer
+// (pushed to the same subject digest by pkg/oras) or any unrelated artifact must
+// never satisfy it, while a legacy referrer whose kind lives only in
+// config.mediaType must still be recognized.
+
+// referrerFixture builds a registry stub serving one referrers index plus the
+// referrer manifests it lists. descriptors are written into the index verbatim;
+// manifests maps a referrer digest to the manifest body served for it.
+func referrerFixture(t *testing.T, descriptors, manifests map[string]string) (host string, calls *atomic.Int64) {
+	t.Helper()
+	var n atomic.Int64
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		descs := make([]string, 0, len(descriptors))
+		for _, d := range descriptors {
+			descs = append(descs, d)
+		}
+		_, _ = fmt.Fprintf(w, `{"manifests":[%s]}`, strings.Join(descs, ","))
+	})
+	for digest, body := range manifests {
+		mux.HandleFunc("/v2/library/tool/manifests/"+digest, func(w http.ResponseWriter, _ *http.Request) {
+			n.Add(1)
+			_, _ = w.Write([]byte(body))
+		})
+	}
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+	return strings.TrimPrefix(ts.URL, "http://"), &n
+}
+
+// referrerExists runs the check under test against a stub registry at host.
+func referrerExists(t *testing.T, host string) (bool, error) {
+	t.Helper()
+	c := &HarborChecker{client: newClientWithHTTP(http.DefaultClient), scheme: "http"}
+	return c.ReferrerExists(context.Background(), host+"/library/tool:latest", "sha256:subject")
+}
+
+func TestReferrerExists_TypedToolSpecDescriptor_IsHealthyEvidence(t *testing.T) {
+	host, _ := referrerFixture(t, map[string]string{
+		"spec": `{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}`,
+	}, nil)
+
+	ok, err := referrerExists(t, host)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("a corrected typed ToolSpec descriptor must be recognized directly from the index")
+	}
+}
+
+func TestReferrerExists_LegacyToolSpec_IsRecognizedViaConfigMediaType(t *testing.T) {
+	// sori's current push path stamps a generic artifactType on every referrer and
+	// records the real kind in config.mediaType. Such an artifact is valid and must
+	// not be reported absent just because the producer wire format is not migrated.
+	host, calls := referrerFixture(t, map[string]string{
+		"spec": `{"digest":"sha256:spec","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
+	}, map[string]string{
+		"sha256:spec": `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`,
+	})
+
+	ok, err := referrerExists(t, host)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("legacy ToolSpec referrer must be recognized through bounded manifest inspection")
+	}
+	if calls.Load() == 0 {
+		t.Error("expected the legacy descriptor to be resolved by a manifest fetch")
+	}
+}
+
+func TestReferrerExists_ToolProfileOnly_IsNotHealthyEvidence(t *testing.T) {
+	// The regression that motivated this packet: pkg/oras.PushToolProfileReferrer
+	// attaches to the same subject digest, so counting any referrer made a tool
+	// whose ToolSpec push failed reconcile to Healthy.
+	host, _ := referrerFixture(t, map[string]string{
+		"profile": `{"digest":"sha256:profile","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
+	}, map[string]string{
+		"sha256:profile": `{"config":{"mediaType":"application/vnd.nodevault.toolprofile.v1+json"}}`,
+	})
+
+	ok, err := referrerExists(t, host)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("a ToolProfile referrer alone must never prove the spec referrer exists")
+	}
+}
+
+func TestReferrerExists_TypedToolProfile_IsDecidedWithoutFetch(t *testing.T) {
+	host, calls := referrerFixture(t, map[string]string{
+		"profile": `{"digest":"sha256:profile","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}`,
+	}, map[string]string{
+		"sha256:profile": `{"config":{"mediaType":"application/vnd.nodevault.toolprofile.v1+json"}}`,
+	})
+
+	ok, err := referrerExists(t, host)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("typed ToolProfile must not satisfy the spec-referrer check")
+	}
+	if got := calls.Load(); got != 0 {
+		t.Errorf("a typed descriptor is decidable from the index; got %d manifest fetches", got)
+	}
+}
+
+func TestReferrerExists_UnrelatedReferrerOnly_IsNotHealthyEvidence(t *testing.T) {
+	host, _ := referrerFixture(t, map[string]string{
+		"other": `{"digest":"sha256:other","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
+	}, map[string]string{
+		"sha256:other": `{"config":{"mediaType":"application/vnd.example.something-else.v1+json"}}`,
+	})
+
+	ok, err := referrerExists(t, host)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("an unrelated artifact must never prove the spec referrer exists")
+	}
+}
+
+func TestReferrerExists_SpecAlongsideProfile_IsHealthyEvidence(t *testing.T) {
+	host, _ := referrerFixture(t, map[string]string{
+		"profile": `{"digest":"sha256:profile","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
+		"spec":    `{"digest":"sha256:spec","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
+	}, map[string]string{
+		"sha256:profile": `{"config":{"mediaType":"application/vnd.nodevault.toolprofile.v1+json"}}`,
+		"sha256:spec":    `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`,
+	})
+
+	ok, err := referrerExists(t, host)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("the spec referrer must still be found when other referrers are attached too")
+	}
+}
+
+func TestReferrerExists_EmptyIndex_IsConfirmedAbsence(t *testing.T) {
+	host, _ := referrerFixture(t, nil, nil)
+
+	ok, err := referrerExists(t, host)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("an empty referrers index is a confirmed absence")
+	}
+}
+
+func TestReferrerExists_ManifestFetch5xx_IsIndeterminateNotAbsent(t *testing.T) {
+	// A legacy descriptor we cannot resolve must fail closed. Reporting absence
+	// here would write a false Partial over a possibly-Healthy entry.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:spec", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	host := strings.TrimPrefix(ts.URL, "http://")
+
+	ok, err := referrerExists(t, host)
+	if err == nil {
+		t.Fatal("expected an indeterminate error when a referrer manifest cannot be read")
+	}
+	if ok {
+		t.Error("expected ok=false alongside the error")
+	}
+}
+
+func TestReferrerExists_ManifestFetch401_IsIndeterminateNotAbsent(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:spec", func(w http.ResponseWriter, _ *http.Request) {
+		// No WWW-Authenticate -> no usable challenge -> the 401 passes through.
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	host := strings.TrimPrefix(ts.URL, "http://")
+
+	ok, err := referrerExists(t, host)
+	if err == nil {
+		t.Fatal("an auth challenge must not be classified as a missing spec referrer")
+	}
+	if ok {
+		t.Error("expected ok=false alongside the error")
+	}
+}
+
+func TestReferrerExists_InspectionBudgetExceeded_IsIndeterminateNotAbsent(t *testing.T) {
+	descs := make([]string, 0, maxReferrerInspections+1)
+	for i := 0; i <= maxReferrerInspections; i++ {
+		descs = append(descs, fmt.Sprintf(
+			`{"digest":"sha256:d%d","artifactType":"application/vnd.oci.image.manifest.v1+json"}`, i))
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"manifests":[%s]}`, strings.Join(descs, ","))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	host := strings.TrimPrefix(ts.URL, "http://")
+
+	ok, err := referrerExists(t, host)
+	if err == nil {
+		t.Fatal("exceeding the inspection budget must be indeterminate, not a confirmed absence")
+	}
+	if ok {
+		t.Error("expected ok=false alongside the error")
+	}
+}
+
+func TestReferrerExists_VanishedReferrer_IsNotAnError(t *testing.T) {
+	// Listed then deleted between the two calls: not the spec referrer, but also
+	// not an infrastructure failure.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:gone","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:gone", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	host := strings.TrimPrefix(ts.URL, "http://")
+
+	ok, err := referrerExists(t, host)
+	if err != nil {
+		t.Fatalf("a 404 on a listed referrer is a confirmed absence, not an error: %v", err)
+	}
+	if ok {
+		t.Error("expected ok=false")
 	}
 }
