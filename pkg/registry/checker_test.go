@@ -962,3 +962,37 @@ func TestReferrerExists_ExplicitlyEmptyManifests_IsConfirmedAbsence(t *testing.T
 		t.Error("expected ok=false")
 	}
 }
+
+func TestReferrerExists_MalformedNextLinkEntry_IsIndeterminate(t *testing.T) {
+	// A continuation missing its angle brackets is structurally invalid but still
+	// declares itself next; skipping it would strand an unvisited page.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `/v2/library/tool/referrers/sha256:subject?last=p1; rel=next`)
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err == nil {
+		t.Fatal("a malformed but self-declared continuation must be indeterminate, not skipped")
+	}
+	if ok {
+		t.Error("expected ok=false alongside the error")
+	}
+}
+
+func TestNextPageURL_MalformedEntryWithoutNextRelation_IsIgnored(t *testing.T) {
+	// The counterpart: a malformed entry that never claims to be the continuation
+	// is simply not a continuation, and must not become an error.
+	got, err := nextPageURL(
+		"http://reg.example/v2/library/tool/referrers/sha256:subject",
+		[]string{`/v2/library/tool/prev; rel=prev`})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "" {
+		t.Errorf("nextPageURL = %q, want \"\"", got)
+	}
+}

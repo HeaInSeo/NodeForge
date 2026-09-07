@@ -351,6 +351,11 @@ func nextPageURL(currentURL string, links []string) (string, error) {
 			lo := strings.Index(entry, "<")
 			hi := strings.Index(entry, ">")
 			if lo < 0 || hi < lo {
+				// Structurally malformed. If it nonetheless declares itself the
+				// continuation, silently skipping it would strand an unvisited page.
+				if hasNextRelation(entry) {
+					return "", fmt.Errorf("advertised next page link is malformed: %q", entry)
+				}
 				continue
 			}
 			if !hasNextRelation(entry[hi+1:]) {
