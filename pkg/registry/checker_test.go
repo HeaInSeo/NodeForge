@@ -563,6 +563,16 @@ func TestNextPageURL_RelationSpellings(t *testing.T) {
 		{"second entry is next", []string{`</v2/prev>; rel="prev", </v2/next>; rel="next"`}, "http://reg.example/v2/next"},
 		{"next in a later Link field", []string{`</v2/prev>; rel="prev"`, `</v2/next>; rel="next"`}, "http://reg.example/v2/next"},
 		{"no next across fields", []string{`</v2/prev>; rel="prev"`, `</v2/first>; rel="first"`}, ""},
+		{
+			"semicolon inside a quoted parameter",
+			[]string{`</v2/previous>; rel=prev; title="x; rel=next", </v2/actual>; rel=next`},
+			"http://reg.example/v2/actual",
+		},
+		{
+			"comma inside a quoted parameter",
+			[]string{`</v2/previous>; rel=prev; title="x, rel=next", </v2/actual>; rel=next`},
+			"http://reg.example/v2/actual",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := nextPageURL(current, tc.links)

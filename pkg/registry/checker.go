@@ -332,42 +332,50 @@ func nextPageURL(currentURL string, links []string) (string, error) {
 	return "", nil
 }
 
-// splitLinkEntries splits a Link header into its comma-separated entries without
-// breaking on a comma inside a <...> target or inside a quoted parameter value.
+// splitLinkEntries splits a Link header field into its comma-separated entries
+// without breaking on a comma inside a <...> target or a quoted parameter value.
 func splitLinkEntries(link string) []string {
+	return splitUnquoted(link, ',', true)
+}
+
+// splitUnquoted splits s on sep, ignoring any separator that appears inside a
+// quoted string or, when angleAware, inside a <...> target.
+func splitUnquoted(s string, sep rune, angleAware bool) []string {
 	var (
-		entries []string
+		parts   []string
 		buf     strings.Builder
 		inAngle bool
 		inQuote bool
 	)
-	for _, r := range link {
+	for _, r := range s {
 		switch {
 		case r == '"':
 			inQuote = !inQuote
 		case inQuote:
-		case r == '<':
+		case angleAware && r == '<':
 			inAngle = true
-		case r == '>':
+		case angleAware && r == '>':
 			inAngle = false
-		case r == ',' && !inAngle:
-			entries = append(entries, buf.String())
+		case r == sep && !inAngle:
+			parts = append(parts, buf.String())
 			buf.Reset()
 			continue
 		}
 		buf.WriteRune(r)
 	}
 	if strings.TrimSpace(buf.String()) != "" {
-		entries = append(entries, buf.String())
+		parts = append(parts, buf.String())
 	}
-	return entries
+	return parts
 }
 
 // hasNextRelation reports whether a Link entry's parameter section declares the
 // "next" relation. Per RFC 8288 the value may be quoted or bare, relation names
 // are case-insensitive, and a single rel may list several space-separated types.
+// Parameters are separated on unquoted semicolons only, so a quoted value that
+// itself contains a semicolon is not mistaken for further parameters.
 func hasNextRelation(params string) bool {
-	for _, param := range strings.Split(params, ";") {
+	for _, param := range splitUnquoted(params, ';', false) {
 		key, value, ok := strings.Cut(param, "=")
 		if !ok || !strings.EqualFold(strings.TrimSpace(key), "rel") {
 			continue
