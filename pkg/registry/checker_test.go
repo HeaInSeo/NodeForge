@@ -823,3 +823,54 @@ func TestReferrerExists_SpecOnPageWithUnusableContinuation_IsFound(t *testing.T)
 		t.Error("expected the ToolSpec on this page to be found")
 	}
 }
+
+func TestReferrerExists_ForeignTypedDescriptor_IsSettledWithoutFetch(t *testing.T) {
+	// A descriptor stating a meaningful foreign artifactType has already answered
+	// the question. It must not be re-opened by reading config.mediaType, or a
+	// manifest whose config claims the ToolSpec type could falsely prove Healthy.
+	fetched := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:foreign","artifactType":"application/vnd.cncf.notary.signature"}]}`))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:foreign", func(w http.ResponseWriter, _ *http.Request) {
+		fetched++
+		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("a foreign-typed referrer must not prove the spec referrer exists")
+	}
+	if fetched != 0 {
+		t.Errorf("a foreign-typed descriptor is settled by the listing; got %d manifest fetches", fetched)
+	}
+}
+
+func TestReferrerKind_ForeignManifestArtifactType_WinsOverConfig(t *testing.T) {
+	// Same precedence one level down: the manifest's own artifactType is
+	// authoritative, and config.mediaType is consulted only for the legacy
+	// generic value.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:mixed","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:mixed", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"artifactType":"application/vnd.cncf.notary.signature","config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("a manifest declaring a foreign artifactType must not match on its config mediaType")
+	}
+}

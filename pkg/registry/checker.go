@@ -31,16 +31,11 @@ const maxReferrerInspections = 32
 // indeterminate, never as a confirmed absence.
 const maxReferrerPages = 16
 
-// nodeVaultReferrerKinds is the set of semantic kinds NodeVault's producers emit.
-// A descriptor carrying one of them is decidable from the referrers index alone;
-// anything else — notably the generic image-manifest artifactType sori's current
-// push path stamps on every referrer — must be resolved by fetching the manifest.
-var nodeVaultReferrerKinds = map[string]bool{
-	sori.MediaTypeToolSpec:     true,
-	sori.MediaTypeToolProfile:  true,
-	sori.MediaTypeDataSpec:     true,
-	sori.MediaTypeSecurityScan: true,
-}
+// legacyGenericArtifactType is the artifactType sori's current push path stamps
+// on every referrer regardless of kind. It identifies nothing, so it is the only
+// value (besides an absent one) for which the semantic kind must be read from the
+// referrer manifest's config.mediaType instead.
+const legacyGenericArtifactType = "application/vnd.oci.image.manifest.v1+json"
 
 // referrerDescriptor is one entry of an OCI referrers index response. An index
 // descriptor carries no config, so artifactType is the only kind evidence the
@@ -50,13 +45,16 @@ type referrerDescriptor struct {
 	ArtifactType string `json:"artifactType"`
 }
 
-// kind returns the NodeVault semantic referrer kind this descriptor proves, or ""
-// when the listing alone cannot decide it.
-func (d *referrerDescriptor) kind() string {
-	if nodeVaultReferrerKinds[d.ArtifactType] {
-		return d.ArtifactType
+// kind returns the semantic referrer kind this descriptor states and whether the
+// listing alone settles it. artifactType is authoritative when it says anything
+// meaningful — including a foreign kind, which settles the descriptor as "not
+// ours" without a fetch. Only an absent or legacy-generic artifactType leaves the
+// kind undecided.
+func (d *referrerDescriptor) kind() (string, bool) {
+	if d.ArtifactType == "" || d.ArtifactType == legacyGenericArtifactType {
+		return "", false
 	}
-	return ""
+	return d.ArtifactType, true
 }
 
 // HarborChecker implements reconcile.RegistryChecker using the OCI Distribution Spec API.
@@ -217,18 +215,19 @@ func (c *HarborChecker) scanPage(
 		deferred    error
 	)
 	for i := range descriptors {
-		switch kind := descriptors[i].kind(); {
-		case kind == mediaTypeToolSpec && descriptors[i].Digest != "":
+		kind, decided := descriptors[i].kind()
+		switch {
+		case decided && kind == mediaTypeToolSpec && descriptors[i].Digest != "":
 			return true, nil
-		case kind == mediaTypeToolSpec:
+		case decided && kind == mediaTypeToolSpec:
 			// Claims to be the spec referrer but names no manifest: malformed, and
 			// too weak to prove Healthy.
 			if deferred == nil {
 				deferred = fmt.Errorf(
 					"referrer exists %s: indeterminate: ToolSpec descriptor carries no digest", pageURL)
 			}
-		case kind != "":
-			continue // a different NodeVault kind (e.g. ToolProfile): decided, not a match
+		case decided:
+			continue // some other kind (ToolProfile, or foreign): settled, not a match
 		case descriptors[i].Digest != "":
 			undecidable = append(undecidable, descriptors[i].Digest)
 		default:
@@ -486,7 +485,10 @@ func (c *HarborChecker) referrerKind(ctx context.Context, host, name, digest str
 	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
 		return "", fmt.Errorf("referrer kind GET %s: decode manifest: %w", url, err)
 	}
-	if nodeVaultReferrerKinds[m.ArtifactType] {
+	// artifactType is authoritative wherever it says anything meaningful; the
+	// config media type is a fallback only for the legacy generic value, matching
+	// how the vendored ORAS client resolves a manifest's artifact type.
+	if m.ArtifactType != "" && m.ArtifactType != legacyGenericArtifactType {
 		return m.ArtifactType, nil
 	}
 	if m.Config.MediaType == "" {
