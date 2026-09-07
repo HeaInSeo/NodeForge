@@ -569,6 +569,11 @@ func TestNextPageURL_RelationSpellings(t *testing.T) {
 			"http://reg.example/v2/actual",
 		},
 		{
+			"escaped quote inside a parameter",
+			[]string{`</v2/previous>; rel=prev; title="x\"", </v2/actual>; rel=next`},
+			"http://reg.example/v2/actual",
+		},
+		{
 			"comma inside a quoted parameter",
 			[]string{`</v2/previous>; rel=prev; title="x, rel=next", </v2/actual>; rel=next`},
 			"http://reg.example/v2/actual",
@@ -777,5 +782,44 @@ func TestReferrerExists_ManifestWithForeignKind_IsCleanNonmatch(t *testing.T) {
 	}
 	if ok {
 		t.Error("expected ok=false")
+	}
+}
+
+func TestReferrerExists_TypedToolSpecWithoutDigest_IsIndeterminate(t *testing.T) {
+	// A descriptor claiming the ToolSpec kind but naming no manifest is malformed
+	// and must not be accepted as proof of Healthy.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if ok {
+		t.Error("a digest-less ToolSpec descriptor must not prove the spec referrer exists")
+	}
+	if err == nil {
+		t.Error("expected an indeterminate error for a malformed descriptor")
+	}
+}
+
+func TestReferrerExists_SpecOnPageWithUnusableContinuation_IsFound(t *testing.T) {
+	// The page already proves the ToolSpec exists, so an off-origin continuation
+	// never needs following and must not discard that evidence.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `<http://attacker.example/v2/next>; rel="next"`)
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:spec","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	if err != nil {
+		t.Fatalf("evidence on the current page must survive an unusable continuation: %v", err)
+	}
+	if !ok {
+		t.Error("expected the ToolSpec on this page to be found")
 	}
 }

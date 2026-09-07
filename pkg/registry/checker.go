@@ -160,11 +160,11 @@ func (c *HarborChecker) ReferrerExists(ctx context.Context, imageRef, subjectDig
 				pageURL, maxReferrerPages)
 		}
 
-		descriptors, next, found, pageErr := c.referrerPage(ctx, pageURL)
+		listing, pageErr := c.referrerPage(ctx, pageURL)
 		if pageErr != nil {
 			return false, pageErr
 		}
-		if !found {
+		if !listing.found {
 			if page == 0 {
 				return false, nil // confirmed: the subject has no referrers
 			}
@@ -172,7 +172,7 @@ func (c *HarborChecker) ReferrerExists(ctx context.Context, imageRef, subjectDig
 				"referrer exists %s: indeterminate: continuation page disappeared", pageURL)
 		}
 
-		matched, pageDeferred := c.scanPage(ctx, host, name, pageURL, descriptors, &budget)
+		matched, pageDeferred := c.scanPage(ctx, host, name, pageURL, listing.descriptors, &budget)
 		if matched {
 			return true, nil
 		}
@@ -180,10 +180,17 @@ func (c *HarborChecker) ReferrerExists(ctx context.Context, imageRef, subjectDig
 			deferred = pageDeferred
 		}
 
-		if next == "" {
+		// This page did not prove it, so an unusable continuation now matters.
+		if listing.nextErr != nil {
+			if deferred == nil {
+				deferred = listing.nextErr
+			}
 			break
 		}
-		pageURL = next
+		if listing.next == "" {
+			break
+		}
+		pageURL = listing.next
 	}
 
 	// The whole listing was walked without finding a spec referrer. That is a
@@ -211,8 +218,15 @@ func (c *HarborChecker) scanPage(
 	)
 	for i := range descriptors {
 		switch kind := descriptors[i].kind(); {
-		case kind == mediaTypeToolSpec:
+		case kind == mediaTypeToolSpec && descriptors[i].Digest != "":
 			return true, nil
+		case kind == mediaTypeToolSpec:
+			// Claims to be the spec referrer but names no manifest: malformed, and
+			// too weak to prove Healthy.
+			if deferred == nil {
+				deferred = fmt.Errorf(
+					"referrer exists %s: indeterminate: ToolSpec descriptor carries no digest", pageURL)
+			}
 		case kind != "":
 			continue // a different NodeVault kind (e.g. ToolProfile): decided, not a match
 		case descriptors[i].Digest != "":
@@ -251,29 +265,41 @@ func (c *HarborChecker) scanPage(
 	return false, deferred
 }
 
-// referrerPage fetches one page of the referrers listing. found=false reports a
-// confirmed 404 (this subject has no referrers listing); next is the resolved
-// rel="next" URL, or "" when this is the last page.
+// referrerListing is one decoded page of the referrers listing.
+type referrerListing struct {
+	descriptors []referrerDescriptor
+	// next is the resolved rel="next" URL, or "" when this is the last page.
+	next string
+	// nextErr reports a continuation that was advertised but cannot be followed.
+	// It is carried alongside the descriptors rather than returned as a hard error
+	// so the caller can still scan this page: if the spec referrer is here, no
+	// continuation needs following at all.
+	nextErr error
+	// found is false for a confirmed 404 — this subject has no referrers listing.
+	found bool
+}
+
+// referrerPage fetches and decodes one page of the referrers listing.
 func (c *HarborChecker) referrerPage(
 	ctx context.Context, pageURL string,
-) (descriptors []referrerDescriptor, next string, found bool, err error) {
+) (referrerListing, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, http.NoBody)
 	if err != nil {
-		return nil, "", false, fmt.Errorf("referrer exists: build request: %w", err)
+		return referrerListing{}, fmt.Errorf("referrer exists: build request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.oci.image.index.v1+json")
 
 	resp, err := c.doWithAuthRetry(ctx, req)
 	if err != nil {
-		return nil, "", false, fmt.Errorf("referrer exists GET %s: %w", pageURL, err)
+		return referrerListing{}, fmt.Errorf("referrer exists GET %s: %w", pageURL, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, "", false, nil
+		return referrerListing{}, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", false, fmt.Errorf(
+		return referrerListing{}, fmt.Errorf(
 			"referrer exists GET %s: indeterminate status %d", pageURL, resp.StatusCode)
 	}
 
@@ -281,13 +307,16 @@ func (c *HarborChecker) referrerPage(
 		Manifests []referrerDescriptor `json:"manifests"`
 	}
 	if decErr := json.NewDecoder(resp.Body).Decode(&idx); decErr != nil {
-		return nil, "", false, fmt.Errorf("referrer exists GET %s: decode response: %w", pageURL, decErr)
+		return referrerListing{}, fmt.Errorf("referrer exists GET %s: decode response: %w", pageURL, decErr)
 	}
-	next, err = nextPageURL(pageURL, resp.Header.Values("Link"))
-	if err != nil {
-		return nil, "", false, fmt.Errorf("referrer exists GET %s: indeterminate: %w", pageURL, err)
+
+	listing := referrerListing{descriptors: idx.Manifests, found: true}
+	next, nextErr := nextPageURL(pageURL, resp.Header.Values("Link"))
+	if nextErr != nil {
+		listing.nextErr = fmt.Errorf("referrer exists GET %s: indeterminate: %w", pageURL, nextErr)
 	}
-	return idx.Manifests, next, true, nil
+	listing.next = next
+	return listing, nil
 }
 
 // nextPageURL extracts the rel="next" target from the response's Link header
@@ -339,16 +368,26 @@ func splitLinkEntries(link string) []string {
 }
 
 // splitUnquoted splits s on sep, ignoring any separator that appears inside a
-// quoted string or, when angleAware, inside a <...> target.
+// quoted string or, when angleAware, inside a <...> target. A backslash-escaped
+// character inside a quoted string is passed through without changing quote
+// state, so an escaped quote cannot desynchronize the scan.
 func splitUnquoted(s string, sep rune, angleAware bool) []string {
 	var (
 		parts   []string
 		buf     strings.Builder
 		inAngle bool
 		inQuote bool
+		escaped bool
 	)
 	for _, r := range s {
+		if escaped {
+			escaped = false
+			buf.WriteRune(r)
+			continue
+		}
 		switch {
+		case inQuote && r == '\\':
+			escaped = true
 		case r == '"':
 			inQuote = !inQuote
 		case inQuote:
