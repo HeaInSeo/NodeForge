@@ -624,6 +624,32 @@ func splitUnquoted(s string, sep rune, angleAware bool) (parts []string, complet
 	return parts, !inQuote && !inAngle && !escaped
 }
 
+// unquoteParamValue returns the value of a Link parameter with its surrounding
+// quotes removed and quoted-pairs decoded, so a relation written as "ne\xt"
+// compares equal to next. A value that is not a quoted-string is returned as is.
+func unquoteParamValue(v string) string {
+	v = strings.TrimSpace(v)
+	if len(v) < 2 || v[0] != '"' || v[len(v)-1] != '"' {
+		return v
+	}
+	var (
+		out     strings.Builder
+		escaped bool
+	)
+	for _, r := range v[1 : len(v)-1] {
+		switch {
+		case escaped:
+			out.WriteRune(r)
+			escaped = false
+		case r == '\\':
+			escaped = true
+		default:
+			out.WriteRune(r)
+		}
+	}
+	return out.String()
+}
+
 // hasNextRelation reports whether a Link entry's parameter section declares the
 // "next" relation. Per RFC 8288 the value may be quoted or bare, relation names
 // are case-insensitive, and a single rel may list several space-separated types.
@@ -638,7 +664,7 @@ func hasNextRelation(params string) bool {
 		if !ok || !strings.EqualFold(strings.TrimSpace(key), "rel") {
 			continue
 		}
-		for _, rel := range strings.Fields(strings.Trim(strings.TrimSpace(value), `"`)) {
+		for _, rel := range strings.Fields(unquoteParamValue(value)) {
 			if strings.EqualFold(rel, "next") {
 				return true
 			}

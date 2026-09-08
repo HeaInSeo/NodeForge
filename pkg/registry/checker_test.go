@@ -607,6 +607,16 @@ func TestNextPageURL_RelationSpellings(t *testing.T) {
 		{"next in a later Link field", []string{`</v2/prev>; rel="prev"`, `</v2/next>; rel="next"`}, "http://reg.example/v2/next"},
 		{"no next across fields", []string{`</v2/prev>; rel="prev"`, `</v2/first>; rel="first"`}, ""},
 		{
+			"quoted-pair in the relation value",
+			[]string{`</v2/next>; rel="ne\xt"`},
+			"http://reg.example/v2/next",
+		},
+		{
+			"quoted-pair escaping a backslash",
+			[]string{`</v2/next>; rel="next\\"`},
+			"",
+		},
+		{
 			"semicolon inside a quoted parameter",
 			[]string{`</v2/previous>; rel=prev; title="x; rel=next", </v2/actual>; rel=next`},
 			"http://reg.example/v2/actual",
