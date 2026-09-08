@@ -417,7 +417,17 @@ func (c *HarborChecker) resolveCandidates(
 			continue // resolved to something else: settled, not a witness
 		}
 		if want.referrerDigest != "" {
-			// Reached only for the expected digest, whose kind is now confirmed.
+			// Kind confirmed for the expected digest. The artifact also has to still
+			// carry its payload: a manifest whose content-addressed config has been
+			// deleted is incomplete and witnesses nothing.
+			payloadFound, existsErr := c.payloadExists(ctx, host, name, facts.configDigest)
+			if existsErr != nil {
+				defer1("spec referrer witness %s: %w", pageURL, existsErr)
+				continue
+			}
+			if !payloadFound {
+				continue
+			}
 			return true, nil
 		}
 
@@ -763,6 +773,30 @@ func (c *HarborChecker) inspectReferrer(
 			"referrer inspect GET %s: indeterminate: manifest declares no artifactType and no config.mediaType", url)
 	}
 	return facts, nil
+}
+
+// payloadExists reports whether a referrer's config blob is still present.
+//
+// It is the existence half of referrerCasHash, used where the entry already
+// names the exact artifact and so nothing needs to be read out of the payload —
+// only confirmed to be there. A confirmed 404 is (false, nil): the artifact is
+// incomplete, which is a nonmatch rather than an unknown.
+func (c *HarborChecker) payloadExists(ctx context.Context, host, name, configDigest string) (bool, error) {
+	if !usableDigest(configDigest) {
+		return false, fmt.Errorf(
+			"referrer payload: indeterminate: manifest config carries no usable digest (%q)", configDigest)
+	}
+	url := fmt.Sprintf("%s://%s/v2/%s/blobs/%s", c.scheme, host, name, configDigest)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, http.NoBody)
+	if err != nil {
+		return false, fmt.Errorf("referrer payload: build request: %w", err)
+	}
+	resp, err := c.doWithAuthRetry(ctx, req)
+	if err != nil {
+		return false, fmt.Errorf("referrer payload HEAD %s: %w", url, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return classifyExistence(url, resp.StatusCode)
 }
 
 // referrerCasHash reads the cas_hash recorded in a ToolSpec referrer's payload,

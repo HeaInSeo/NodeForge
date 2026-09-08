@@ -164,6 +164,7 @@ func referrerFixture(t *testing.T, descriptors, manifests map[string]string) (ho
 			_, _ = w.Write([]byte(body))
 		})
 	}
+	serveToolSpecPayload(mux)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 	return strings.TrimPrefix(ts.URL, "http://"), &n
@@ -209,13 +210,31 @@ func serveToolSpecArtifact(mux *http.ServeMux, digest, casHash string) {
 	})
 }
 
+// testCfgDigest is the config blob every fixture ToolSpec manifest points at,
+// and testToolSpecManifest is that manifest. A ToolSpec artifact is only
+// complete with both, so the fixtures serve both.
+var testCfgDigest = "sha256:" + strings.Repeat("c", 64)
+
+func testToolSpecManifest() string {
+	return fmt.Sprintf(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":%q}}`, testCfgDigest)
+}
+
 // serveToolSpecManifest registers a retrievable ToolSpec manifest at digest.
 // The known-digest path verifies the artifact still exists, so a fixture that
 // only lists a descriptor is asserting that a stale listing entry is enough —
 // which it is not.
 func serveToolSpecManifest(mux *http.ServeMux, digest string) {
 	mux.HandleFunc("/v2/library/tool/manifests/"+digest, func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`))
+		_, _ = w.Write([]byte(testToolSpecManifest()))
+	})
+	serveToolSpecPayload(mux)
+}
+
+// serveToolSpecPayload registers the shared config blob the fixture ToolSpec
+// manifests reference.
+func serveToolSpecPayload(mux *http.ServeMux) {
+	mux.HandleFunc("/v2/library/tool/blobs/"+testCfgDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"cas_hash":%q}`, testCasHash)
 	})
 }
 
@@ -230,7 +249,7 @@ func TestReferrerExists_TypedToolSpecDescriptor_IsHealthyEvidence(t *testing.T) 
 	host, _ := referrerFixture(t, map[string]string{
 		"spec": `{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.nodevault.toolspec.v1+json"}`,
 	}, map[string]string{
-		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`,
+		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}}`,
 	})
 
 	ok, err := witnessOf(t, host, testSpecDigest)
@@ -249,7 +268,7 @@ func TestReferrerExists_LegacyToolSpec_IsRecognizedViaConfigMediaType(t *testing
 	host, calls := referrerFixture(t, map[string]string{
 		"spec": `{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
 	}, map[string]string{
-		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`,
+		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}}`,
 	})
 
 	ok, err := witnessOf(t, host, testSpecDigest)
@@ -324,7 +343,7 @@ func TestReferrerExists_SpecAlongsideProfile_IsHealthyEvidence(t *testing.T) {
 		"spec":    `{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.oci.image.manifest.v1+json"}`,
 	}, map[string]string{
 		"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": `{"config":{"mediaType":"application/vnd.nodevault.toolprofile.v1+json"}}`,
-		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`,
+		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}}`,
 	})
 
 	ok, err := witnessOf(t, host, testSpecDigest)
@@ -452,8 +471,9 @@ func TestReferrerExists_MatchBeforeBudget_WinsOverLargeListing(t *testing.T) {
 		_, _ = fmt.Fprintf(w, `{"manifests":[%s]}`, strings.Join(descs, ","))
 	})
 	mux.HandleFunc("/v2/library/tool/manifests/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`))
+		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}}`))
 	})
+	serveToolSpecPayload(mux)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
@@ -905,7 +925,7 @@ func TestReferrerExists_ForeignTypedDescriptor_IsSettledWithoutFetch(t *testing.
 	})
 	mux.HandleFunc("/v2/library/tool/manifests/sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", func(w http.ResponseWriter, _ *http.Request) {
 		fetched++
-		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`))
+		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}}`))
 	})
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
@@ -1753,5 +1773,58 @@ func TestSpecReferrerWitness_KnownDigest_ManifestContradictsListing_IsIndetermin
 	}
 	if err == nil {
 		t.Error("contradictory evidence must be indeterminate")
+	}
+}
+
+func TestSpecReferrerWitness_KnownDigest_PayloadDeleted_IsCleanNonmatch(t *testing.T) {
+	// The entry's own ToolSpec manifest is still listed and retrievable, but its
+	// content-addressed payload is gone. The artifact is incomplete, so it cannot
+	// witness the entry — and that is confirmed, not unknown.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`,
+			testSpecDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/"+testSpecDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(testToolSpecManifest()))
+	})
+	mux.HandleFunc("/v2/library/tool/blobs/"+testCfgDigest, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
+	if err != nil {
+		t.Fatalf("a deleted payload is a confirmed nonmatch, not an error: %v", err)
+	}
+	if ok {
+		t.Error("an artifact whose payload is gone must not witness the entry")
+	}
+}
+
+func TestSpecReferrerWitness_KnownDigest_PayloadUnreadable_IsIndeterminate(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`,
+			testSpecDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/"+testSpecDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(testToolSpecManifest()))
+	})
+	mux.HandleFunc("/v2/library/tool/blobs/"+testCfgDigest, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
+	if ok {
+		t.Error("expected ok=false")
+	}
+	if err == nil {
+		t.Error("an unreadable payload must stay indeterminate")
 	}
 }
