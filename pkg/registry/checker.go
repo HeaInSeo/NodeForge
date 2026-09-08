@@ -22,14 +22,14 @@ import (
 const mediaTypeToolSpec = sori.MediaTypeToolSpec
 
 // maxReferrerInspections bounds the extra manifest fetches a single
-// ReferrerExists call may perform while resolving legacy untyped descriptors.
+// SpecReferrerWitness call may perform while resolving candidate descriptors.
 // Exceeding the budget is reported as indeterminate rather than absent, so a
 // subject with a pathological number of referrers cannot silently downgrade a
 // Healthy entry to Partial.
 const maxReferrerInspections = 32
 
 // maxReferrerPages bounds how many pages of a paginated referrers listing a
-// single ReferrerExists call will traverse. Outrunning it is reported as
+// single SpecReferrerWitness call will traverse. Outrunning it is reported as
 // indeterminate, never as a confirmed absence.
 const maxReferrerPages = 16
 
@@ -120,52 +120,68 @@ func (c *HarborChecker) ImageExists(ctx context.Context, imageRef, digest string
 	return classifyExistence(url, resp.StatusCode)
 }
 
-// ReferrerExists reports whether the expected ToolSpec spec referrer is attached
-// to the subject image. Uses the OCI referrers API: GET /v2/{name}/referrers/{digest}.
+// witnessFor identifies the index entry whose ToolSpec referrer we are looking
+// for. A ToolSpec referrer attached to the same image but belonging to a
+// different entry is not evidence for this one: one image digest may carry
+// several entries, each with its own ToolSpec.
+type witnessFor struct {
+	// referrerDigest is Entry.SpecReferrerDigest. When set it is the only
+	// acceptable witness, matched exactly.
+	referrerDigest string
+	// casHash is Entry.CasHash, used when referrerDigest is unset — the referrer
+	// payload names the entry it was pushed for, so the payload's cas_hash is what
+	// ties an artifact back to this entry.
+	casHash string
+}
+
+// SpecReferrerWitness reports whether the subject image carries a ToolSpec
+// referrer belonging to this specific index entry. Uses the OCI referrers API:
+// GET /v2/{name}/referrers/{digest}.
 //
-// The answer is established by exact semantic referrer kind, never by the mere
-// presence of some referrer. index.HealthPartial is defined as "image OK, spec
-// referrer missing", so an unrelated artifact — or a ToolProfile referrer, which
-// pkg/oras.PushToolProfileReferrer attaches to this very same subject digest —
-// must not be able to report the spec referrer as present.
+// IntegrityHealth=Healthy asserts a per-entry witness, not merely that the image
+// has some ToolSpec referrer. Because uniqueness in the index is by CasHash, one
+// image digest can carry several entries; entry A's referrer must never make
+// entry B look Healthy.
 //
-// Two descriptor shapes are recognized:
-//
-//   - Typed: the referrers-index descriptor already carries the semantic kind in
-//     artifactType.
-//   - Legacy: sori's current push path packs every referrer with a generic
-//     image-manifest artifactType and records the semantic kind only in the
-//     referrer manifest's config.mediaType. Those artifacts are valid, so each
-//     undecidable descriptor is resolved with a bounded manifest fetch rather
-//     than being reported absent.
+// Evidence is established by exact semantic referrer kind, never by the mere
+// presence of some referrer — an unrelated artifact, or the ToolProfile referrer
+// that pkg/oras attaches to this very same subject digest, cannot witness it.
+// Two descriptor shapes are recognized: typed descriptors carry the kind in
+// artifactType, while sori's current push path stamps a generic image-manifest
+// artifactType and records the kind only in the referrer manifest's
+// config.mediaType, so those are resolved by a bounded manifest fetch rather
+// than reported absent.
 //
 // Outcome contract matches the rest of this type: a confirmed absence is
 // (false, nil); anything indeterminate — 401/403/5xx/timeout/decode failure, or
-// more undecidable descriptors than the inspection budget allows — is
-// (false, err), so the caller leaves integrity_health untouched instead of
-// recording a false Partial or Missing.
-func (c *HarborChecker) ReferrerExists(ctx context.Context, imageRef, subjectDigest string) (bool, error) {
+// evidence that outruns the inspection or page budgets — is (false, err), so the
+// caller leaves integrity_health untouched instead of recording a false Partial
+// or Missing.
+func (c *HarborChecker) SpecReferrerWitness(
+	ctx context.Context, imageRef, subjectDigest, expectedReferrerDigest, casHash string,
+) (bool, error) {
 	if imageRef == "" || subjectDigest == "" {
 		return false, nil
 	}
 	host, name, err := parseRef(imageRef)
 	if err != nil {
-		return false, fmt.Errorf("referrer exists: %w", err)
+		return false, fmt.Errorf("spec referrer witness: %w", err)
 	}
+	want := witnessFor{referrerDigest: expectedReferrerDigest, casHash: casHash}
 	pageURL := fmt.Sprintf("%s://%s/v2/%s/referrers/%s", c.scheme, host, name, subjectDigest)
 
-	// deferred holds the first indeterminate outcome met while resolving untyped
-	// referrers. It is not returned immediately: a later descriptor may still be a
-	// readable ToolSpec, and positive evidence outranks an unrelated artifact we
-	// could not read. It is returned only if the walk ends without a match, so an
-	// unreadable neighbor can never become a confirmed absence.
+	// deferred holds the first indeterminate outcome met while resolving
+	// candidates. It is not returned immediately: a later descriptor may still be
+	// this entry's readable witness, and positive evidence outranks an artifact we
+	// could not read. It is returned only if the walk ends without a witness, so
+	// an unreadable neighbor can never become a confirmed absence.
 	var deferred error
 
 	budget := maxReferrerInspections
 	for page := 0; ; page++ {
 		if page == maxReferrerPages {
 			return false, fmt.Errorf(
-				"referrer exists %s: indeterminate: listing exceeds the %d page budget",
+				"spec referrer witness %s: indeterminate: listing exceeds the %d page budget",
 				pageURL, maxReferrerPages)
 		}
 
@@ -178,10 +194,10 @@ func (c *HarborChecker) ReferrerExists(ctx context.Context, imageRef, subjectDig
 				return false, nil // confirmed: the subject has no referrers
 			}
 			return false, fmt.Errorf(
-				"referrer exists %s: indeterminate: continuation page disappeared", pageURL)
+				"spec referrer witness %s: indeterminate: continuation page disappeared", pageURL)
 		}
 
-		matched, pageDeferred := c.scanPage(ctx, host, name, pageURL, listing.descriptors, &budget)
+		matched, pageDeferred := c.scanPage(ctx, host, name, pageURL, listing.descriptors, &budget, want)
 		if matched {
 			return true, nil
 		}
@@ -189,7 +205,7 @@ func (c *HarborChecker) ReferrerExists(ctx context.Context, imageRef, subjectDig
 			deferred = pageDeferred
 		}
 
-		// This page did not prove it, so an unusable continuation now matters.
+		// This page did not witness it, so an unusable continuation now matters.
 		if listing.nextErr != nil {
 			if deferred == nil {
 				deferred = listing.nextErr
@@ -202,78 +218,145 @@ func (c *HarborChecker) ReferrerExists(ctx context.Context, imageRef, subjectDig
 		pageURL = listing.next
 	}
 
-	// The whole listing was walked without finding a spec referrer. That is a
-	// confirmed absence only if nothing was left unread.
+	// The whole listing was walked without a witness. That is a confirmed absence
+	// only if nothing was left unread.
 	if deferred != nil {
 		return false, deferred
 	}
 	return false, nil
 }
 
-// scanPage looks for the spec referrer among one page's descriptors. Typed
-// descriptors are decided from the listing; the rest are resolved with manifest
-// fetches drawn from the shared budget.
+// candidate is a descriptor that still needs a fetch before it can be accepted
+// or dismissed as this entry's witness.
+type candidate struct {
+	digest    string
+	kindKnown bool // true when the listing already proved it is a ToolSpec
+}
+
+// scanPage looks for this entry's witness among one page's descriptors. Typed
+// descriptors are decided from the listing wherever possible; the rest are
+// resolved with fetches drawn from the shared budget.
 //
-// A non-nil second return is an indeterminate outcome met on this page — an
-// unreadable descriptor, or a spent budget. It is advisory: the caller keeps
-// walking, because positive evidence elsewhere outranks a descriptor that could
-// not be read, and only falls back to it if the whole listing yields no match.
+// A non-nil second return is an indeterminate outcome met on this page. It is
+// advisory: the caller keeps walking and only falls back to it if the whole
+// listing yields no witness.
 func (c *HarborChecker) scanPage(
-	ctx context.Context, host, name, pageURL string, descriptors []referrerDescriptor, budget *int,
+	ctx context.Context, host, name, pageURL string,
+	descriptors []referrerDescriptor, budget *int, want witnessFor,
 ) (bool, error) {
+	matched, candidates, deferred := triage(descriptors, pageURL, want)
+	if matched {
+		return true, nil
+	}
+	found, resolveDeferred := c.resolveCandidates(ctx, host, name, pageURL, candidates, budget, want)
+	if found {
+		return true, nil
+	}
+	if deferred == nil {
+		deferred = resolveDeferred
+	}
+	return false, deferred
+}
+
+// triage sorts one page's descriptors into an immediate match, candidates that
+// need a fetch, and an advisory indeterminate outcome.
+func triage(descriptors []referrerDescriptor, pageURL string, want witnessFor) (bool, []candidate, error) {
 	var (
-		undecidable []string
-		deferred    error
+		candidates []candidate
+		deferred   error
 	)
-	for i := range descriptors {
-		kind, decided := descriptors[i].kind()
-		switch {
-		case decided && kind == mediaTypeToolSpec && usableDigest(descriptors[i].Digest):
-			return true, nil
-		case decided && kind == mediaTypeToolSpec:
-			// Claims to be the spec referrer but identifies no manifest: malformed,
-			// and too weak to prove Healthy.
-			if deferred == nil {
-				deferred = fmt.Errorf(
-					"referrer exists %s: indeterminate: ToolSpec descriptor carries no usable digest (%q)",
-					pageURL, descriptors[i].Digest)
-			}
-		case decided:
-			continue // some other kind (ToolProfile, or foreign): settled, not a match
-		case usableDigest(descriptors[i].Digest):
-			undecidable = append(undecidable, descriptors[i].Digest)
-		default:
-			// Untyped, with no usable digest to fetch: its kind can never be
-			// established, so it must not be counted as a nonmatch. A malformed
-			// digest is as unusable as an absent one — fetching it would just 404
-			// and masquerade as a clean nonmatch.
-			if deferred == nil {
-				deferred = fmt.Errorf(
-					"referrer exists %s: indeterminate: untyped referrer descriptor carries no usable digest (%q)",
-					pageURL, descriptors[i].Digest)
-			}
+	defer1 := func(format string, args ...any) {
+		if deferred == nil {
+			deferred = fmt.Errorf(format, args...)
 		}
 	}
-	for _, d := range undecidable {
-		if *budget == 0 {
-			if deferred == nil {
-				deferred = fmt.Errorf(
-					"referrer exists %s: indeterminate: untyped referrers exceed the inspection budget of %d",
-					pageURL, maxReferrerInspections)
+	for i := range descriptors {
+		kind, decided := descriptors[i].kind()
+
+		// With an expected referrer digest, only that exact artifact can witness
+		// this entry, so every other descriptor is irrelevant — including ones we
+		// could not read, which therefore raise no indeterminacy at all.
+		if want.referrerDigest != "" {
+			if descriptors[i].Digest != want.referrerDigest {
+				continue
 			}
-			break
-		}
-		*budget--
-		kind, kindErr := c.referrerKind(ctx, host, name, d)
-		if kindErr != nil {
-			if deferred == nil {
-				deferred = fmt.Errorf("referrer exists %s: %w", pageURL, kindErr)
+			switch {
+			case decided && kind == mediaTypeToolSpec:
+				return true, nil, nil
+			case decided:
+				continue // the expected digest is some other kind: not a witness
+			default:
+				candidates = append(candidates, candidate{digest: descriptors[i].Digest})
 			}
 			continue
 		}
-		if kind == mediaTypeToolSpec {
+
+		// Without one, any ToolSpec referrer on this subject is a candidate, and
+		// its payload has to name this entry.
+		switch {
+		case decided && kind == mediaTypeToolSpec && usableDigest(descriptors[i].Digest):
+			candidates = append(candidates, candidate{digest: descriptors[i].Digest, kindKnown: true})
+		case decided && kind == mediaTypeToolSpec:
+			defer1("spec referrer witness %s: indeterminate: ToolSpec descriptor carries no usable digest (%q)",
+				pageURL, descriptors[i].Digest)
+		case decided:
+			continue // some other kind (ToolProfile, or foreign): settled, not a witness
+		case usableDigest(descriptors[i].Digest):
+			candidates = append(candidates, candidate{digest: descriptors[i].Digest})
+		default:
+			// Untyped, with no usable digest to fetch: its kind can never be
+			// established, so it must not be counted as a nonmatch.
+			defer1("spec referrer witness %s: indeterminate: untyped referrer descriptor carries no usable digest (%q)",
+				pageURL, descriptors[i].Digest)
+		}
+	}
+	return false, candidates, deferred
+}
+
+// resolveCandidates fetches what triage could not decide, spending from the
+// shared inspection budget.
+func (c *HarborChecker) resolveCandidates(
+	ctx context.Context, host, name, pageURL string,
+	candidates []candidate, budget *int, want witnessFor,
+) (bool, error) {
+	var deferred error
+	defer1 := func(format string, args ...any) {
+		if deferred == nil {
+			deferred = fmt.Errorf(format, args...)
+		}
+	}
+	for _, cand := range candidates {
+		if *budget == 0 {
+			// Out of fetches, but later pages may still carry a decidable witness.
+			defer1("spec referrer witness %s: indeterminate: candidates exceed the inspection budget of %d",
+				pageURL, maxReferrerInspections)
+			break
+		}
+		*budget--
+
+		facts, factsErr := c.inspectReferrer(ctx, host, name, cand.digest)
+		if factsErr != nil {
+			defer1("spec referrer witness %s: %w", pageURL, factsErr)
+			continue
+		}
+		if !cand.kindKnown && facts.kind != mediaTypeToolSpec {
+			continue // resolved to something else: settled, not a witness
+		}
+		if want.referrerDigest != "" {
+			// Reached only for the expected digest, whose kind is now confirmed.
 			return true, nil
 		}
+
+		casHash, casErr := c.referrerCasHash(ctx, host, name, facts.configDigest)
+		if casErr != nil {
+			defer1("spec referrer witness %s: %w", pageURL, casErr)
+			continue
+		}
+		if casHash == want.casHash {
+			return true, nil
+		}
+		// A ToolSpec referrer naming a different entry: real evidence, just not
+		// for this one.
 	}
 	return false, deferred
 }
@@ -479,57 +562,110 @@ func defaultedPort(u *neturl.URL) string {
 	return "80"
 }
 
-// referrerKind fetches a single referrer manifest and returns the semantic kind
-// recorded in its config.mediaType.
+// referrerFacts is what one referrer manifest tells us about itself.
+type referrerFacts struct {
+	kind         string
+	configDigest string
+}
+
+// inspectReferrer fetches a single referrer manifest and reports its semantic
+// kind and the digest of its config blob (which holds the artifact's payload).
 //
 // A confirmed 404 returns ("", nil): the descriptor was listed but the manifest
 // is already gone, so it is not the spec referrer we are looking for. Every other
 // non-200 is indeterminate and returns an error, as does a manifest that declares
 // neither a recognized artifactType nor a config.mediaType — that identifies
 // nothing, and must not be mistaken for a nonmatch.
-func (c *HarborChecker) referrerKind(ctx context.Context, host, name, digest string) (string, error) {
+func (c *HarborChecker) inspectReferrer(
+	ctx context.Context, host, name, digest string,
+) (referrerFacts, error) {
 	url := fmt.Sprintf("%s://%s/v2/%s/manifests/%s", c.scheme, host, name, digest)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
-		return "", fmt.Errorf("referrer kind: build request: %w", err)
+		return referrerFacts{}, fmt.Errorf("referrer inspect: build request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.oci.image.manifest.v1+json")
 
 	resp, err := c.doWithAuthRetry(ctx, req)
 	if err != nil {
-		return "", fmt.Errorf("referrer kind GET %s: %w", url, err)
+		return referrerFacts{}, fmt.Errorf("referrer inspect GET %s: %w", url, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return "", nil
+		return referrerFacts{}, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("referrer kind GET %s: indeterminate status %d", url, resp.StatusCode)
+		return referrerFacts{}, fmt.Errorf("referrer inspect GET %s: indeterminate status %d", url, resp.StatusCode)
 	}
 
 	var m struct {
 		ArtifactType string `json:"artifactType"`
 		Config       struct {
 			MediaType string `json:"mediaType"`
+			Digest    string `json:"digest"`
 		} `json:"config"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
-		return "", fmt.Errorf("referrer kind GET %s: decode manifest: %w", url, err)
+	if decErr := json.NewDecoder(resp.Body).Decode(&m); decErr != nil {
+		return referrerFacts{}, fmt.Errorf("referrer inspect GET %s: decode manifest: %w", url, decErr)
 	}
+
+	facts := referrerFacts{configDigest: m.Config.Digest}
 	// artifactType is authoritative wherever it says anything meaningful; the
 	// config media type is a fallback only for the legacy generic value, matching
 	// how the vendored ORAS client resolves a manifest's artifact type.
-	if m.ArtifactType != "" && m.ArtifactType != legacyGenericArtifactType {
-		return m.ArtifactType, nil
-	}
-	if m.Config.MediaType == "" {
+	switch {
+	case m.ArtifactType != "" && m.ArtifactType != legacyGenericArtifactType:
+		facts.kind = m.ArtifactType
+	case m.Config.MediaType != "":
+		facts.kind = m.Config.MediaType
+	default:
 		// Neither field identifies the artifact, so nothing was learned. Reporting
 		// this as a nonmatch would let an unidentified referrer look like absence.
-		return "", fmt.Errorf(
-			"referrer kind GET %s: indeterminate: manifest declares no artifactType and no config.mediaType", url)
+		return referrerFacts{}, fmt.Errorf(
+			"referrer inspect GET %s: indeterminate: manifest declares no artifactType and no config.mediaType", url)
 	}
-	return m.Config.MediaType, nil
+	return facts, nil
+}
+
+// referrerCasHash reads the cas_hash recorded in a ToolSpec referrer's payload,
+// which sori stores as the referrer manifest's config blob. It is what ties an
+// artifact to the index entry it was pushed for.
+//
+// A payload that records no cas_hash identifies no entry, so it is indeterminate
+// rather than a nonmatch.
+func (c *HarborChecker) referrerCasHash(ctx context.Context, host, name, configDigest string) (string, error) {
+	if !usableDigest(configDigest) {
+		return "", fmt.Errorf(
+			"referrer payload: indeterminate: manifest config carries no usable digest (%q)", configDigest)
+	}
+	url := fmt.Sprintf("%s://%s/v2/%s/blobs/%s", c.scheme, host, name, configDigest)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return "", fmt.Errorf("referrer payload: build request: %w", err)
+	}
+
+	resp, err := c.doWithAuthRetry(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("referrer payload GET %s: %w", url, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("referrer payload GET %s: indeterminate status %d", url, resp.StatusCode)
+	}
+
+	var payload struct {
+		CasHash string `json:"cas_hash"`
+	}
+	if decErr := json.NewDecoder(resp.Body).Decode(&payload); decErr != nil {
+		return "", fmt.Errorf("referrer payload GET %s: decode: %w", url, decErr)
+	}
+	if payload.CasHash == "" {
+		return "", fmt.Errorf(
+			"referrer payload GET %s: indeterminate: ToolSpec payload records no cas_hash", url)
+	}
+	return payload.CasHash, nil
 }
 
 // PullReachable verifies the image manifest can be fetched (GET, not just HEAD).
@@ -577,7 +713,7 @@ func classifyExistence(url string, status int) (bool, error) {
 // without a usable challenge, or one that survives the retry, is returned
 // as-is so the caller classifies it as indeterminate rather than "not found."
 func (c *HarborChecker) doWithAuthRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
-	//nolint:gosec // G704: req.URL is built in ImageExists/ReferrerExists/PullReachable from
+	//nolint:gosec // G704: req.URL is built in ImageExists/SpecReferrerWitness/PullReachable from
 	// the operator-configured registry host and an index.Entry.ImageRef this process itself
 	// wrote — not from an untrusted external request, so this is not an SSRF vector.
 	resp, err := c.client.http.Do(req)

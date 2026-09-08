@@ -2,6 +2,8 @@ package registry
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/http"
@@ -95,7 +97,7 @@ func TestHarborChecker_UsesConfiguredScheme(t *testing.T) {
 	}
 }
 
-func TestHarborChecker_ReferrerExists_500_IsIndeterminate(t *testing.T) {
+func TestHarborChecker_SpecReferrerWitness_500_IsIndeterminate(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -103,7 +105,7 @@ func TestHarborChecker_ReferrerExists_500_IsIndeterminate(t *testing.T) {
 	host := strings.TrimPrefix(ts.URL, "http://")
 	checker := &HarborChecker{client: newClientWithHTTP(ts.Client()), scheme: "http"}
 
-	ok, err := checker.ReferrerExists(context.Background(), host+"/library/tool:latest", "sha256:abc")
+	ok, err := checker.SpecReferrerWitness(context.Background(), host+"/library/tool:latest", "sha256:abc", "", testCasHash)
 	if err == nil {
 		t.Fatal("expected error for 500, got nil")
 	}
@@ -166,11 +168,51 @@ func referrerFixture(t *testing.T, descriptors, manifests map[string]string) (ho
 	return strings.TrimPrefix(ts.URL, "http://"), &n
 }
 
-// referrerExists runs the check under test against a stub registry at host.
+// referrerExists runs the witness check for an entry whose SpecReferrerDigest is
+// unset and whose payload cas_hash is testCasHash, which the fixtures below
+// record in every ToolSpec payload they serve.
 func referrerExists(t *testing.T, host string) (bool, error) {
 	t.Helper()
+	return witness(t, host, "", testCasHash)
+}
+
+// witness runs the check under test against a stub registry at host.
+func witness(t *testing.T, host, expectedReferrerDigest, casHash string) (bool, error) {
+	t.Helper()
 	c := &HarborChecker{client: newClientWithHTTP(http.DefaultClient), scheme: "http"}
-	return c.ReferrerExists(context.Background(), host+"/library/tool:latest", "sha256:subject")
+	return c.SpecReferrerWitness(
+		context.Background(), host+"/library/tool:latest", "sha256:subject", expectedReferrerDigest, casHash)
+}
+
+// testCasHash is the entry identity the fixtures' ToolSpec payloads name.
+const testCasHash = "cas-entry-a"
+
+// testSpecDigest is the referrer digest the fixtures use for the ToolSpec
+// artifact, i.e. the value an entry's SpecReferrerDigest would hold.
+var testSpecDigest = "sha256:" + strings.Repeat("a", 64)
+
+// serveToolSpecArtifact registers a complete legacy-shaped ToolSpec referrer at
+// digest: a manifest whose config names the ToolSpec media type, plus the config
+// blob holding the payload that ties the artifact to casHash.
+func serveToolSpecArtifact(mux *http.ServeMux, digest, casHash string) {
+	payload := fmt.Sprintf(`{"cas_hash":%q}`, casHash)
+	sum := sha256.Sum256([]byte(payload))
+	cfgDigest := "sha256:" + hex.EncodeToString(sum[:])
+
+	mux.HandleFunc("/v2/library/tool/manifests/"+digest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":%q}}`, cfgDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/blobs/"+cfgDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(payload))
+	})
+}
+
+// witnessOf runs the check for an entry whose SpecReferrerDigest is known, which
+// is the common case: that exact artifact is the only acceptable witness.
+func witnessOf(t *testing.T, host, referrerDigest string) (bool, error) {
+	t.Helper()
+	return witness(t, host, referrerDigest, testCasHash)
 }
 
 func TestReferrerExists_TypedToolSpecDescriptor_IsHealthyEvidence(t *testing.T) {
@@ -178,7 +220,7 @@ func TestReferrerExists_TypedToolSpecDescriptor_IsHealthyEvidence(t *testing.T) 
 		"spec": `{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactType":"application/vnd.nodevault.toolspec.v1+json"}`,
 	}, nil)
 
-	ok, err := referrerExists(t, host)
+	ok, err := witnessOf(t, host, testSpecDigest)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -197,7 +239,7 @@ func TestReferrerExists_LegacyToolSpec_IsRecognizedViaConfigMediaType(t *testing
 		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`,
 	})
 
-	ok, err := referrerExists(t, host)
+	ok, err := witnessOf(t, host, testSpecDigest)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -272,7 +314,7 @@ func TestReferrerExists_SpecAlongsideProfile_IsHealthyEvidence(t *testing.T) {
 		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": `{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`,
 	})
 
-	ok, err := referrerExists(t, host)
+	ok, err := witnessOf(t, host, testSpecDigest)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -402,7 +444,7 @@ func TestReferrerExists_MatchBeforeBudget_WinsOverLargeListing(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -427,7 +469,7 @@ func TestReferrerExists_SpecOnSecondPage_IsFoundByTraversal(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -518,7 +560,7 @@ func TestReferrerExists_NextLinkSameOriginDifferentSpelling_IsFollowed(t *testin
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
 	if err != nil {
 		t.Fatalf("an equivalent origin spelled differently must still be followed: %v", err)
 	}
@@ -536,7 +578,7 @@ func TestReferrerExists_PaginatedWithMatchOnFirstPage_IsHealthyEvidence(t *testi
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
 	if err != nil {
 		t.Fatalf("pagination must not matter once the spec referrer is found: %v", err)
 	}
@@ -605,7 +647,7 @@ func TestReferrerExists_BareRelNext_IsTraversed(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -626,9 +668,7 @@ func TestReferrerExists_UnreadableNeighbourBeforeSpec_StillFindsSpec(t *testing.
 	mux.HandleFunc("/v2/library/tool/manifests/sha256:1111111111111111111111111111111111111111111111111111111111111111", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}}`))
-	})
+	serveToolSpecArtifact(mux, testSpecDigest, testCasHash)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
@@ -689,7 +729,7 @@ func TestReferrerExists_BudgetSpentThenTypedSpecOnNextPage_IsFound(t *testing.T)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -715,7 +755,7 @@ func TestReferrerExists_NextInLaterLinkField_IsTraversed(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -815,7 +855,7 @@ func TestReferrerExists_SpecOnPageWithUnusableContinuation_IsFound(t *testing.T)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
 	if err != nil {
 		t.Fatalf("evidence on the current page must survive an unusable continuation: %v", err)
 	}
@@ -1056,11 +1096,180 @@ func TestReferrerExists_RelativeNextAfterRedirect_ResolvesAgainstFinalURL(t *tes
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	ok, err := referrerExists(t, strings.TrimPrefix(ts.URL, "http://"))
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !ok {
 		t.Error("a relative continuation must resolve against the post-redirect URL")
+	}
+}
+
+// ── Per-entry witness ─────────────────────────────────────────────────────────
+//
+// One image digest may carry several index entries, since uniqueness is by
+// CasHash. Entry A's ToolSpec referrer must never witness entry B.
+
+// twoEntryRegistry serves an image whose subject listing holds exactly one
+// ToolSpec referrer, the one belonging to entry A.
+func twoEntryRegistry(t *testing.T, entryACasHash string) string {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`,
+			testSpecDigest)
+	})
+	serveToolSpecArtifact(mux, testSpecDigest, entryACasHash)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+	return strings.TrimPrefix(ts.URL, "http://")
+}
+
+func TestSpecReferrerWitness_SharedImage_OnlyOwningEntryIsWitnessed(t *testing.T) {
+	// Entry A: CasHash=A, ImageDigest=X, its ToolSpec referrer exists.
+	// Entry B: CasHash=B, ImageDigest=X, no referrer of its own.
+	// A must be Healthy, B must be Partial.
+	host := twoEntryRegistry(t, "cas-entry-A")
+
+	t.Run("entry A is witnessed", func(t *testing.T) {
+		ok, err := witness(t, host, "", "cas-entry-A")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !ok {
+			t.Error("entry A owns this ToolSpec referrer and must be witnessed")
+		}
+	})
+
+	t.Run("entry B is not witnessed", func(t *testing.T) {
+		ok, err := witness(t, host, "", "cas-entry-B")
+		if err != nil {
+			t.Fatalf("a readable referrer belonging to another entry is a confirmed absence for B, not an error: %v", err)
+		}
+		if ok {
+			t.Error("entry A's ToolSpec referrer must not witness entry B")
+		}
+	})
+}
+
+func TestSpecReferrerWitness_KnownDigest_OtherEntrysReferrerIsNotAWitness(t *testing.T) {
+	// Entry B knows its own SpecReferrerDigest, and the only artifact present is
+	// entry A's. Exact digest match is required, so B is not witnessed.
+	host := twoEntryRegistry(t, "cas-entry-A")
+	othersDigest := "sha256:" + strings.Repeat("9", 64)
+
+	ok, err := witness(t, host, othersDigest, "cas-entry-B")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("only the entry's own referrer digest may witness it")
+	}
+}
+
+func TestSpecReferrerWitness_KnownDigest_WrongToolSpecOnCorrectImage_IsNotWitness(t *testing.T) {
+	// A ToolSpec referrer is present on the right image, but it is not the one
+	// this entry recorded.
+	host := twoEntryRegistry(t, "cas-entry-A")
+
+	ok, err := witness(t, host, "sha256:"+strings.Repeat("7", 64), testCasHash)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Error("a different ToolSpec artifact on the correct image must not be accepted")
+	}
+}
+
+func TestSpecReferrerWitness_EmptyDigest_LegacyGenericArtifactTypeWithMatchingCasHash(t *testing.T) {
+	// The producer stamps a generic artifactType, so the kind comes from the
+	// manifest config and the identity from the payload cas_hash.
+	host := twoEntryRegistry(t, testCasHash)
+
+	ok, err := witness(t, host, "", testCasHash)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !ok {
+		t.Error("a legacy-typed ToolSpec whose payload names this entry must be witnessed")
+	}
+}
+
+func TestSpecReferrerWitness_EmptyDigest_PayloadWithoutCasHash_IsIndeterminate(t *testing.T) {
+	// The payload identifies no entry, so it can neither witness nor be dismissed.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`,
+			testSpecDigest)
+	})
+	cfgDigest := "sha256:" + strings.Repeat("5", 64)
+	mux.HandleFunc("/v2/library/tool/manifests/"+testSpecDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":%q}}`, cfgDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/blobs/"+cfgDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witness(t, strings.TrimPrefix(ts.URL, "http://"), "", testCasHash)
+	if err == nil {
+		t.Fatal("a ToolSpec payload naming no entry must be indeterminate")
+	}
+	if ok {
+		t.Error("expected ok=false alongside the error")
+	}
+}
+
+func TestSpecReferrerWitness_EmptyDigest_UnreadablePayload_IsIndeterminate(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`,
+			testSpecDigest)
+	})
+	cfgDigest := "sha256:" + strings.Repeat("5", 64)
+	mux.HandleFunc("/v2/library/tool/manifests/"+testSpecDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":%q}}`, cfgDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/blobs/"+cfgDigest, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witness(t, strings.TrimPrefix(ts.URL, "http://"), "", testCasHash)
+	if err == nil {
+		t.Fatal("an unreadable ToolSpec payload must be indeterminate, not a confirmed absence")
+	}
+	if ok {
+		t.Error("expected ok=false alongside the error")
+	}
+}
+
+func TestSpecReferrerWitness_KnownDigest_UnreadableNeighborIsIrrelevant(t *testing.T) {
+	// With the exact digest known, artifacts that are not it cannot matter — not
+	// even ones we fail to read — so this is a clean confirmed absence.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:` + strings.Repeat("3", 64) +
+			`","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:"+strings.Repeat("3", 64), func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witness(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest, testCasHash)
+	if err != nil {
+		t.Fatalf("an unrelated unreadable artifact is irrelevant when the digest is known: %v", err)
+	}
+	if ok {
+		t.Error("expected ok=false")
 	}
 }

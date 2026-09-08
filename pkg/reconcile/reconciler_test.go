@@ -2,6 +2,8 @@ package reconcile_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -27,7 +29,7 @@ type fakeChecker struct {
 func (f *fakeChecker) ImageExists(_ context.Context, _, _ string) (bool, error) {
 	return f.imageExists, f.imageErr
 }
-func (f *fakeChecker) ReferrerExists(_ context.Context, _, _ string) (bool, error) {
+func (f *fakeChecker) SpecReferrerWitness(_ context.Context, _, _, _, _ string) (bool, error) {
 	return f.referrerExists, f.referrerErr
 }
 func (f *fakeChecker) PullReachable(_ context.Context, _, _ string) (bool, error) {
@@ -170,7 +172,7 @@ type raceChecker struct {
 func (*raceChecker) ImageExists(_ context.Context, _, _ string) (bool, error) {
 	return true, nil
 }
-func (*raceChecker) ReferrerExists(_ context.Context, _, _ string) (bool, error) {
+func (*raceChecker) SpecReferrerWitness(_ context.Context, _, _, _, _ string) (bool, error) {
 	return true, nil
 }
 func (c *raceChecker) PullReachable(_ context.Context, _, _ string) (bool, error) {
@@ -388,5 +390,126 @@ func TestFastRun_LegacyToolSpecReferrer_IsHealthy(t *testing.T) {
 	got := healthAfterFastRun(t, "application/vnd.nodevault.toolspec.v1+json")
 	if got != index.HealthHealthy {
 		t.Errorf("integrity_health = %q, want %q for a legacy-typed ToolSpec referrer", got, index.HealthHealthy)
+	}
+}
+
+// ── Per-entry witness, end to end ─────────────────────────────────────────────
+
+// sharedImageRegistry serves one image whose subject listing carries exactly one
+// ToolSpec referrer, whose payload names ownerCasHash.
+func sharedImageRegistry(t *testing.T, ownerCasHash string) string {
+	t.Helper()
+	specDigest := "sha256:" + strings.Repeat("a", 64)
+	payload := fmt.Sprintf(`{"cas_hash":%q}`, ownerCasHash)
+	sum := sha256.Sum256([]byte(payload))
+	cfgDigest := "sha256:" + hex.EncodeToString(sum[:])
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`, specDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/"+specDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":%q}}`, cfgDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/blobs/"+cfgDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(payload))
+	})
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+	return strings.TrimPrefix(ts.URL, "http://")
+}
+
+// TestFastRun_TwoEntriesShareImage_OnlyOwnerIsHealthy is the central regression:
+// two entries share ImageDigest X and only entry A's ToolSpec referrer exists,
+// so A must reconcile to Healthy and B to Partial.
+func TestFastRun_TwoEntriesShareImage_OnlyOwnerIsHealthy(t *testing.T) {
+	host := sharedImageRegistry(t, "A")
+	store := newTestStore(t)
+	for _, casHash := range []string{"A", "B"} {
+		if err := store.Append(index.Entry{
+			CasHash:         casHash,
+			ArtifactKind:    index.KindTool,
+			StableRef:       "tool@" + casHash,
+			ImageRef:        host + "/library/tool:latest",
+			ImageDigest:     "sha256:img",
+			LifecyclePhase:  index.PhaseActive,
+			IntegrityHealth: index.HealthHealthy,
+		}); err != nil {
+			t.Fatalf("Append %s: %v", casHash, err)
+		}
+	}
+
+	checker, err := registry.NewHarborChecker(registryconfig.Config{Scheme: "http"})
+	if err != nil {
+		t.Fatalf("NewHarborChecker: %v", err)
+	}
+	if runErr := reconcile.New(store, checker).FastRun(context.Background()); runErr != nil {
+		t.Fatalf("FastRun: %v", runErr)
+	}
+
+	for _, tc := range []struct {
+		casHash string
+		want    index.IntegrityHealth
+	}{
+		{"A", index.HealthHealthy},
+		{"B", index.HealthPartial},
+	} {
+		e, getErr := store.GetByCasHash(tc.casHash)
+		if getErr != nil {
+			t.Fatalf("GetByCasHash %s: %v", tc.casHash, getErr)
+		}
+		if e.IntegrityHealth != tc.want {
+			t.Errorf("entry %s integrity_health = %q, want %q", tc.casHash, e.IntegrityHealth, tc.want)
+		}
+	}
+}
+
+// TestFastRun_IndeterminateRegistry_LeavesHealthUntouched pins that an
+// unreadable registry never downgrades an entry: no Partial, no Missing.
+func TestFastRun_IndeterminateRegistry_LeavesHealthUntouched(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	host := strings.TrimPrefix(ts.URL, "http://")
+
+	store := newTestStore(t)
+	if err := store.Append(index.Entry{
+		CasHash:         "stable",
+		ArtifactKind:    index.KindTool,
+		StableRef:       "tool@1",
+		ImageRef:        host + "/library/tool:latest",
+		ImageDigest:     "sha256:img",
+		LifecyclePhase:  index.PhaseActive,
+		IntegrityHealth: index.HealthHealthy,
+	}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	checker, err := registry.NewHarborChecker(registryconfig.Config{Scheme: "http"})
+	if err != nil {
+		t.Fatalf("NewHarborChecker: %v", err)
+	}
+	if runErr := reconcile.New(store, checker).FastRun(context.Background()); runErr != nil {
+		t.Fatalf("FastRun: %v", runErr)
+	}
+
+	e, err := store.GetByCasHash("stable")
+	if err != nil {
+		t.Fatalf("GetByCasHash: %v", err)
+	}
+	if e.IntegrityHealth != index.HealthHealthy {
+		t.Errorf("integrity_health = %q, want it left at %q — indeterminate evidence must not mutate health",
+			e.IntegrityHealth, index.HealthHealthy)
 	}
 }

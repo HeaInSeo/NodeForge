@@ -15,7 +15,7 @@ type panicChecker struct{}
 func (panicChecker) ImageExists(context.Context, string, string) (bool, error) {
 	panic("simulated unexpected checker failure")
 }
-func (panicChecker) ReferrerExists(context.Context, string, string) (bool, error) {
+func (panicChecker) SpecReferrerWitness(context.Context, string, string, string, string) (bool, error) {
 	panic("simulated unexpected checker failure")
 }
 func (panicChecker) PullReachable(context.Context, string, string) (bool, error) {
