@@ -328,26 +328,45 @@ func TestFastRun_MultipleArtifacts_EachUpdated(t *testing.T) {
 
 // stubRegistry serves an image manifest plus a referrers index whose sole
 // referrer carries specMediaType in its config, the way sori pushes today.
-func stubRegistry(t *testing.T, specMediaType string) (host string) {
+// stubRegistry serves an image carrying one referrer of specMediaType whose
+// payload names ownerCasHash. The referrer is complete: a valid config digest
+// and a retrievable config blob, so a successful witness is actually reachable
+// rather than the check bottoming out in an indeterminate error.
+func stubRegistry(t *testing.T, specMediaType, ownerCasHash string) (host string) {
 	t.Helper()
+	referrerDigest := "sha256:" + strings.Repeat("3", 64)
+	payload := fmt.Sprintf(`{"cas_hash":%q}`, ownerCasHash)
+	sum := sha256.Sum256([]byte(payload))
+	cfgDigest := "sha256:" + hex.EncodeToString(sum[:])
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v2/library/tool/manifests/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	mux.HandleFunc("/v2/library/tool/referrers/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:3333333333333333333333333333333333333333333333333333333333333333","artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`))
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`,
+			referrerDigest)
 	})
-	mux.HandleFunc("/v2/library/tool/manifests/sha256:3333333333333333333333333333333333333333333333333333333333333333", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = fmt.Fprintf(w, `{"config":{"mediaType":%q}}`, specMediaType)
+	mux.HandleFunc("/v2/library/tool/manifests/"+referrerDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"config":{"mediaType":%q,"digest":%q}}`, specMediaType, cfgDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/blobs/"+cfgDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(payload))
 	})
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 	return strings.TrimPrefix(ts.URL, "http://")
 }
 
+// startingHealth is the state entries are seeded with in the end-to-end tests.
+// It is deliberately neither Healthy nor Partial, so a checker that errors — and
+// therefore leaves integrity_health alone — cannot satisfy any assertion below.
+const startingHealth = index.HealthUnreachable
+
 func healthAfterFastRun(t *testing.T, specMediaType string) index.IntegrityHealth {
 	t.Helper()
-	host := stubRegistry(t, specMediaType)
+	host := stubRegistry(t, specMediaType, "e2e")
 
 	store := newTestStore(t)
 	if err := store.Append(index.Entry{
@@ -357,7 +376,7 @@ func healthAfterFastRun(t *testing.T, specMediaType string) index.IntegrityHealt
 		ImageRef:        host + "/library/tool:latest",
 		ImageDigest:     "sha256:img",
 		LifecyclePhase:  index.PhaseActive,
-		IntegrityHealth: index.HealthHealthy,
+		IntegrityHealth: startingHealth,
 	}); err != nil {
 		t.Fatalf("Append: %v", err)
 	}
@@ -381,15 +400,24 @@ func TestFastRun_ToolProfileReferrerAlone_IsPartialNotHealthy(t *testing.T) {
 	if got == index.HealthHealthy {
 		t.Fatal("image + ToolProfile referrer only must not reconcile to Healthy")
 	}
+	if got == startingHealth {
+		t.Fatalf("integrity_health is still %q: reconcile never reached a verdict", got)
+	}
 	if got != index.HealthPartial {
 		t.Errorf("integrity_health = %q, want %q (image present, spec referrer missing)", got, index.HealthPartial)
 	}
 }
 
-func TestFastRun_LegacyToolSpecReferrer_IsHealthy(t *testing.T) {
+func TestFastRun_LegacyToolSpecReferrer_TransitionsToHealthy(t *testing.T) {
+	// Seeded non-Healthy, so this only passes if the witness genuinely succeeded
+	// and drove the transition — not if the checker errored and health was kept.
 	got := healthAfterFastRun(t, "application/vnd.nodevault.toolspec.v1+json")
+	if got == startingHealth {
+		t.Fatalf("integrity_health is still %q: the witness never succeeded, health was merely preserved", got)
+	}
 	if got != index.HealthHealthy {
-		t.Errorf("integrity_health = %q, want %q for a legacy-typed ToolSpec referrer", got, index.HealthHealthy)
+		t.Errorf("integrity_health = %q, want %q for a legacy-typed ToolSpec referrer whose payload names this entry",
+			got, index.HealthHealthy)
 	}
 }
 
@@ -438,7 +466,7 @@ func TestFastRun_TwoEntriesShareImage_OnlyOwnerIsHealthy(t *testing.T) {
 			ImageRef:        host + "/library/tool:latest",
 			ImageDigest:     "sha256:img",
 			LifecyclePhase:  index.PhaseActive,
-			IntegrityHealth: index.HealthHealthy,
+			IntegrityHealth: startingHealth,
 		}); err != nil {
 			t.Fatalf("Append %s: %v", casHash, err)
 		}
@@ -462,6 +490,11 @@ func TestFastRun_TwoEntriesShareImage_OnlyOwnerIsHealthy(t *testing.T) {
 		e, getErr := store.GetByCasHash(tc.casHash)
 		if getErr != nil {
 			t.Fatalf("GetByCasHash %s: %v", tc.casHash, getErr)
+		}
+		if e.IntegrityHealth == startingHealth {
+			t.Errorf("entry %s integrity_health is still %q: reconcile never reached a verdict",
+				tc.casHash, e.IntegrityHealth)
+			continue
 		}
 		if e.IntegrityHealth != tc.want {
 			t.Errorf("entry %s integrity_health = %q, want %q", tc.casHash, e.IntegrityHealth, tc.want)
@@ -511,5 +544,58 @@ func TestFastRun_IndeterminateRegistry_LeavesHealthUntouched(t *testing.T) {
 	if e.IntegrityHealth != index.HealthHealthy {
 		t.Errorf("integrity_health = %q, want it left at %q — indeterminate evidence must not mutate health",
 			e.IntegrityHealth, index.HealthHealthy)
+	}
+}
+
+// TestFastRun_MalformedExpectedSpecReferrerDigest_LeavesHealthUntouched covers
+// the case where the entry records an unusable SpecReferrerDigest and the
+// registry echoes that very value back as a typed ToolSpec descriptor. Nothing
+// there identifies a manifest, so it must not witness the entry — and because
+// the outcome is indeterminate rather than absent, health must not move at all.
+func TestFastRun_MalformedExpectedSpecReferrerDigest_LeavesHealthUntouched(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(
+			`{"manifests":[{"digest":"not-a-digest","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	host := strings.TrimPrefix(ts.URL, "http://")
+
+	store := newTestStore(t)
+	if err := store.Append(index.Entry{
+		CasHash:            "malformed",
+		ArtifactKind:       index.KindTool,
+		StableRef:          "tool@1",
+		ImageRef:           host + "/library/tool:latest",
+		ImageDigest:        "sha256:img",
+		SpecReferrerDigest: "not-a-digest",
+		LifecyclePhase:     index.PhaseActive,
+		IntegrityHealth:    startingHealth,
+	}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	checker, err := registry.NewHarborChecker(registryconfig.Config{Scheme: "http"})
+	if err != nil {
+		t.Fatalf("NewHarborChecker: %v", err)
+	}
+	if runErr := reconcile.New(store, checker).FastRun(context.Background()); runErr != nil {
+		t.Fatalf("FastRun: %v", runErr)
+	}
+
+	e, err := store.GetByCasHash("malformed")
+	if err != nil {
+		t.Fatalf("GetByCasHash: %v", err)
+	}
+	if e.IntegrityHealth == index.HealthHealthy {
+		t.Fatal("a malformed digest echoed back as a typed ToolSpec must never prove Healthy")
+	}
+	if e.IntegrityHealth != startingHealth {
+		t.Errorf("integrity_health = %q, want it left at %q — an unusable expected digest is indeterminate",
+			e.IntegrityHealth, startingHealth)
 	}
 }

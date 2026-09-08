@@ -1369,3 +1369,39 @@ func TestReferrerExists_MalformedLinkHidingContinuation_IsIndeterminate(t *testi
 		t.Error("expected ok=false alongside the error")
 	}
 }
+
+func TestSpecReferrerWitness_MalformedExpectedDigestEchoedBack_IsIndeterminate(t *testing.T) {
+	// The entry records an unusable digest and the registry lists that very value
+	// as a typed ToolSpec. Exact string equality would "match", but nothing here
+	// identifies a manifest, so it must be indeterminate rather than positive.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(
+			`{"manifests":[{"digest":"not-a-digest","artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witness(t, strings.TrimPrefix(ts.URL, "http://"), "not-a-digest", testCasHash)
+	if ok {
+		t.Error("a malformed expected digest echoed back must not witness the entry")
+	}
+	if err == nil {
+		t.Error("expected an indeterminate error, not a confirmed absence")
+	}
+}
+
+func TestSpecReferrerWitness_MalformedExpectedDigest_NoMatchingDescriptor_IsIndeterminate(t *testing.T) {
+	// Even with nothing echoing it back, an entry whose recorded digest cannot
+	// identify a manifest can never be validly witnessed, so the outcome is
+	// indeterminate rather than a confirmed absence.
+	host := twoEntryRegistry(t, "cas-entry-A")
+
+	ok, err := witness(t, host, "sha256:tooshort", testCasHash)
+	if ok {
+		t.Error("expected ok=false")
+	}
+	if err == nil {
+		t.Error("an unusable recorded digest must be indeterminate")
+	}
+}

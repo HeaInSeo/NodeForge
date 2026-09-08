@@ -167,6 +167,13 @@ func (c *HarborChecker) SpecReferrerWitness(
 	if err != nil {
 		return false, fmt.Errorf("spec referrer witness: %w", err)
 	}
+	if expectedReferrerDigest != "" && !usableDigest(expectedReferrerDigest) {
+		// The entry records a digest that cannot identify a manifest, so no artifact
+		// can validly match it. That is indeterminate, not a confirmed absence.
+		return false, fmt.Errorf(
+			"spec referrer witness: indeterminate: entry records an unusable spec referrer digest (%q)",
+			expectedReferrerDigest)
+	}
 	want := witnessFor{referrerDigest: expectedReferrerDigest, casHash: casHash}
 	pageURL := fmt.Sprintf("%s://%s/v2/%s/referrers/%s", c.scheme, host, name, subjectDigest)
 
@@ -278,6 +285,12 @@ func triage(descriptors []referrerDescriptor, pageURL string, want witnessFor) (
 		// could not read, which therefore raise no indeterminacy at all.
 		if want.referrerDigest != "" {
 			if descriptors[i].Digest != want.referrerDigest {
+				continue
+			}
+			if !usableDigest(descriptors[i].Digest) {
+				// A registry echoing the entry's own malformed digest proves nothing.
+				defer1("spec referrer witness %s: indeterminate: matched descriptor digest is unusable (%q)",
+					pageURL, descriptors[i].Digest)
 				continue
 			}
 			switch {
