@@ -339,7 +339,10 @@ func triage(descriptors []referrerDescriptor, pageURL string, want witnessFor) (
 			}
 			switch {
 			case decided && kind == mediaTypeToolSpec:
-				return true, nil, nil
+				// The listing says this is the artifact, but a listing can outlive the
+				// manifest it points at. Verify it is still retrievable rather than
+				// accepting the label on its own.
+				candidates = append(candidates, candidate{digest: descriptors[i].Digest, kindKnown: true})
 			case decided:
 				continue // the expected digest is some other kind: not a witness
 			default:
