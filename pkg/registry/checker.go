@@ -3,7 +3,9 @@ package registry
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	neturl "net/url"
 	"strings"
@@ -32,6 +34,21 @@ const maxReferrerInspections = 32
 // single SpecReferrerWitness call will traverse. Outrunning it is reported as
 // indeterminate, never as a confirmed absence.
 const maxReferrerPages = 16
+
+// decodeExactly decodes a single JSON value from r and requires the body to end
+// there. json.Decoder.Decode stops at the first value, so trailing bytes would
+// otherwise be ignored and a malformed response accepted as evidence.
+func decodeExactly(r io.Reader, v any) error {
+	dec := json.NewDecoder(r)
+	if err := dec.Decode(v); err != nil {
+		return err
+	}
+	var extra json.RawMessage
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("trailing data after the first JSON value")
+	}
+	return nil
+}
 
 // usableDigest reports whether a descriptor digest can identify a manifest.
 // Validation is delegated to the canonical parser so the encoding and length are
@@ -418,7 +435,7 @@ func (c *HarborChecker) referrerPage(
 		// no evidence at all and must not be read as "no referrers".
 		Manifests *[]referrerDescriptor `json:"manifests"`
 	}
-	if decErr := json.NewDecoder(resp.Body).Decode(&idx); decErr != nil {
+	if decErr := decodeExactly(resp.Body, &idx); decErr != nil {
 		return referrerListing{}, fmt.Errorf("referrer exists GET %s: decode response: %w", pageURL, decErr)
 	}
 	if idx.Manifests == nil {
@@ -643,7 +660,7 @@ func (c *HarborChecker) inspectReferrer(
 			Digest    string `json:"digest"`
 		} `json:"config"`
 	}
-	if decErr := json.NewDecoder(resp.Body).Decode(&m); decErr != nil {
+	if decErr := decodeExactly(resp.Body, &m); decErr != nil {
 		return referrerFacts{}, fmt.Errorf("referrer inspect GET %s: decode manifest: %w", url, decErr)
 	}
 
@@ -695,7 +712,7 @@ func (c *HarborChecker) referrerCasHash(ctx context.Context, host, name, configD
 	var payload struct {
 		CasHash string `json:"cas_hash"`
 	}
-	if decErr := json.NewDecoder(resp.Body).Decode(&payload); decErr != nil {
+	if decErr := decodeExactly(resp.Body, &payload); decErr != nil {
 		return "", fmt.Errorf("referrer payload GET %s: decode: %w", url, decErr)
 	}
 	if payload.CasHash == "" {

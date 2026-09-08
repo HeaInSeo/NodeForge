@@ -1405,3 +1405,72 @@ func TestSpecReferrerWitness_MalformedExpectedDigest_NoMatchingDescriptor_IsInde
 		t.Error("an unusable recorded digest must be indeterminate")
 	}
 }
+
+func TestSpecReferrerWitness_PayloadWithTrailingData_IsNotEvidence(t *testing.T) {
+	// json.Decoder stops at the first value, so a payload that starts with a
+	// matching object but continues with junk would otherwise be accepted as
+	// entry-specific evidence and prove Healthy.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`,
+			testSpecDigest)
+	})
+	cfgDigest := "sha256:" + strings.Repeat("4", 64)
+	mux.HandleFunc("/v2/library/tool/manifests/"+testSpecDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":%q}}`, cfgDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/blobs/"+cfgDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"cas_hash":%q}garbage`, testCasHash)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witness(t, strings.TrimPrefix(ts.URL, "http://"), "", testCasHash)
+	if ok {
+		t.Error("a payload with trailing data must not witness the entry")
+	}
+	if err == nil {
+		t.Error("expected an indeterminate error")
+	}
+}
+
+func TestSpecReferrerWitness_ManifestWithTrailingData_IsNotEvidence(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`,
+			testSpecDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/"+testSpecDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json"}} {"junk":1}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
+	if ok {
+		t.Error("a referrer manifest with trailing data must not establish the kind")
+	}
+	if err == nil {
+		t.Error("expected an indeterminate error")
+	}
+}
+
+func TestSpecReferrerWitness_ReferrersIndexWithTrailingData_IsIndeterminate(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[]} trailing`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
+	if ok {
+		t.Error("expected ok=false")
+	}
+	if err == nil {
+		t.Error("a referrers response with trailing data is not valid absence evidence")
+	}
+}
