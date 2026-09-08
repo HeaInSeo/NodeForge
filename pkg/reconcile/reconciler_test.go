@@ -599,3 +599,57 @@ func TestFastRun_MalformedExpectedSpecReferrerDigest_LeavesHealthUntouched(t *te
 			e.IntegrityHealth, startingHealth)
 	}
 }
+
+// TestFastRun_VanishedTypedToolSpec_ReconcilesToPartial pins the health-level
+// consequence: a ToolSpec that is listed but already deleted is a confirmed
+// absence, so the entry must actually move to Partial rather than being frozen
+// at its previous status by a spurious indeterminate error.
+func TestFastRun_VanishedTypedToolSpec_ReconcilesToPartial(t *testing.T) {
+	specDigest := "sha256:" + strings.Repeat("a", 64)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`, specDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/"+specDigest, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	host := strings.TrimPrefix(ts.URL, "http://")
+
+	store := newTestStore(t)
+	if err := store.Append(index.Entry{
+		CasHash:         "vanished",
+		ArtifactKind:    index.KindTool,
+		StableRef:       "tool@1",
+		ImageRef:        host + "/library/tool:latest",
+		ImageDigest:     "sha256:img",
+		LifecyclePhase:  index.PhaseActive,
+		IntegrityHealth: startingHealth,
+	}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	checker, err := registry.NewHarborChecker(registryconfig.Config{Scheme: "http"})
+	if err != nil {
+		t.Fatalf("NewHarborChecker: %v", err)
+	}
+	if runErr := reconcile.New(store, checker).FastRun(context.Background()); runErr != nil {
+		t.Fatalf("FastRun: %v", runErr)
+	}
+
+	e, err := store.GetByCasHash("vanished")
+	if err != nil {
+		t.Fatalf("GetByCasHash: %v", err)
+	}
+	if e.IntegrityHealth == startingHealth {
+		t.Fatalf("integrity_health is still %q: a confirmed absence was mistaken for indeterminate", e.IntegrityHealth)
+	}
+	if e.IntegrityHealth != index.HealthPartial {
+		t.Errorf("integrity_health = %q, want %q", e.IntegrityHealth, index.HealthPartial)
+	}
+}

@@ -369,6 +369,12 @@ func (c *HarborChecker) resolveCandidates(
 			defer1("spec referrer witness %s: %w", pageURL, factsErr)
 			continue
 		}
+		if !facts.found {
+			// Listed, but gone by the time we fetched it. It cannot witness this
+			// entry, and its disappearance is confirmed rather than indeterminate —
+			// so this must not be dragged into the payload lookup below.
+			continue
+		}
 		if !cand.kindKnown && facts.kind != mediaTypeToolSpec {
 			continue // resolved to something else: settled, not a witness
 		}
@@ -616,10 +622,13 @@ func defaultedPort(u *neturl.URL) string {
 	return "80"
 }
 
-// referrerFacts is what one referrer manifest tells us about itself.
+// referrerFacts is what one referrer manifest tells us about itself. found is
+// false when the manifest was confirmed absent — listed, but already gone by the
+// time it was fetched — which is a clean nonmatch rather than a failure.
 type referrerFacts struct {
 	kind         string
 	configDigest string
+	found        bool
 }
 
 // inspectReferrer fetches a single referrer manifest and reports its semantic
@@ -647,7 +656,7 @@ func (c *HarborChecker) inspectReferrer(
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return referrerFacts{}, nil
+		return referrerFacts{found: false}, nil
 	}
 	if resp.StatusCode != http.StatusOK {
 		return referrerFacts{}, fmt.Errorf("referrer inspect GET %s: indeterminate status %d", url, resp.StatusCode)
@@ -664,7 +673,7 @@ func (c *HarborChecker) inspectReferrer(
 		return referrerFacts{}, fmt.Errorf("referrer inspect GET %s: decode manifest: %w", url, decErr)
 	}
 
-	facts := referrerFacts{configDigest: m.Config.Digest}
+	facts := referrerFacts{configDigest: m.Config.Digest, found: true}
 	// artifactType is authoritative wherever it says anything meaningful; the
 	// config media type is a fallback only for the legacy generic value, matching
 	// how the vendored ORAS client resolves a manifest's artifact type.

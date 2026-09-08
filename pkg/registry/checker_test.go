@@ -1474,3 +1474,29 @@ func TestSpecReferrerWitness_ReferrersIndexWithTrailingData_IsIndeterminate(t *t
 		t.Error("a referrers response with trailing data is not valid absence evidence")
 	}
 }
+
+func TestSpecReferrerWitness_TypedCandidateVanished_IsCleanNonmatch(t *testing.T) {
+	// A typed ToolSpec listed but already deleted by the time it is fetched is a
+	// confirmed nonmatch. Because its kind was known from the listing, it used to
+	// fall through to the payload lookup with an empty config digest and turn a
+	// clean absence into an indeterminate error.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`,
+			testSpecDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/"+testSpecDigest, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witness(t, strings.TrimPrefix(ts.URL, "http://"), "", testCasHash)
+	if err != nil {
+		t.Fatalf("a vanished referrer is a confirmed nonmatch, not an error: %v", err)
+	}
+	if ok {
+		t.Error("expected ok=false")
+	}
+}
