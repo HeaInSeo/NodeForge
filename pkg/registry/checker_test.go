@@ -642,6 +642,11 @@ func TestNextPageURL_RelationSpellings(t *testing.T) {
 		{"next in a later Link field", []string{`</v2/prev>; rel="prev"`, `</v2/next>; rel="next"`}, "http://reg.example/v2/next"},
 		{"no next across fields", []string{`</v2/prev>; rel="prev"`, `</v2/first>; rel="first"`}, ""},
 		{
+			"target with no parameters at all",
+			[]string{`</v2/next>`},
+			"",
+		},
+		{
 			"quoted-pair in the relation value",
 			[]string{`</v2/next>; rel="ne\xt"`},
 			"http://reg.example/v2/next",
@@ -1826,5 +1831,20 @@ func TestSpecReferrerWitness_KnownDigest_PayloadUnreadable_IsIndeterminate(t *te
 	}
 	if err == nil {
 		t.Error("an unreadable payload must stay indeterminate")
+	}
+}
+
+func TestNextPageURL_ParametersWithoutSeparator_IsIndeterminate(t *testing.T) {
+	// A link parameter must be introduced by ';'. Reading rel=next out of an entry
+	// that never properly advertised it would follow /wrong and skip the valid
+	// continuation that follows.
+	got, err := nextPageURL(
+		"http://reg.example/v2/library/tool/referrers/sha256:subject",
+		[]string{`</wrong> rel=next, </actual>; rel=next`})
+	if err == nil {
+		t.Fatalf("a malformed parameter section declaring rel=next must be indeterminate, got %q", got)
+	}
+	if strings.Contains(got, "wrong") {
+		t.Errorf("must never follow the malformed target, got %q", got)
 	}
 }

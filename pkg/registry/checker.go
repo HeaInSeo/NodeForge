@@ -553,7 +553,17 @@ func nextPageURL(currentURL string, links []string) (string, error) {
 				}
 				continue
 			}
-			if !hasNextRelation(trimmed[hi+1:]) {
+			// Parameters must be introduced by ';'. Anything else after the target
+			// means the entry is malformed, and reading a relation out of it would
+			// follow a link the sender never properly advertised.
+			params := strings.TrimSpace(trimmed[hi+1:])
+			if params != "" && !strings.HasPrefix(params, ";") {
+				if hasNextRelation(params) {
+					return "", fmt.Errorf("advertised next page link is malformed: %q", entry)
+				}
+				continue
+			}
+			if !hasNextRelation(params) {
 				continue
 			}
 			base, err := neturl.Parse(currentURL)
