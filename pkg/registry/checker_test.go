@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestHarborChecker_ImageExists_404_NotFound(t *testing.T) {
@@ -1498,5 +1499,70 @@ func TestSpecReferrerWitness_TypedCandidateVanished_IsCleanNonmatch(t *testing.T
 	}
 	if ok {
 		t.Error("expected ok=false")
+	}
+}
+
+func TestSpecReferrerWitness_OversizedResponse_IsIndeterminate(t *testing.T) {
+	// A single well-formed value that simply never stops. It ends cleanly, so the
+	// trailing-data rule does not catch it — only the size bound does, and without
+	// one this would decode happily and be read as a confirmed absence.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[],"pad":"`))
+		chunk := strings.Repeat("x", 1<<16)
+		for written := 0; written < maxEvidenceBytes+(1<<16); written += len(chunk) {
+			_, _ = w.Write([]byte(chunk))
+		}
+		_, _ = w.Write([]byte(`"}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
+	if ok {
+		t.Error("expected ok=false")
+	}
+	if err == nil {
+		t.Fatal("an oversized response must be indeterminate, not valid absence evidence")
+	}
+}
+
+func TestSpecReferrerWitness_ResponseThatNeverEnds_DoesNotHang(t *testing.T) {
+	// The registry sends a complete JSON value and then holds the response open.
+	// Without a deadline the trailing-data read would block forever and stall the
+	// whole reconcile pass.
+	prev := witnessTimeout
+	witnessTimeout = 250 * time.Millisecond
+	defer func() { witnessTimeout = prev }()
+
+	release := make(chan struct{})
+	defer close(release)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"manifests":[]} `))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("a response that never ends must be indeterminate, not valid absence evidence")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("SpecReferrerWitness hung on a response that never ends")
 	}
 }

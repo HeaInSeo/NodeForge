@@ -9,6 +9,7 @@ import (
 	"net/http"
 	neturl "net/url"
 	"strings"
+	"time"
 
 	godigest "github.com/opencontainers/go-digest"
 
@@ -35,16 +36,38 @@ const maxReferrerInspections = 32
 // indeterminate, never as a confirmed absence.
 const maxReferrerPages = 16
 
+// maxEvidenceBytes bounds any single response the witness reads. A referrers
+// page, a referrer manifest, and a ToolSpec payload are all small; refusing to
+// accumulate more protects the check from a response that never ends.
+const maxEvidenceBytes = 4 << 20
+
+// witnessTimeout bounds one whole SpecReferrerWitness call — every page and
+// every fetch it makes. The shared registry client has no timeout of its own, so
+// without this a single response left open would stall the sequential reconcile
+// pass and starve every entry behind it. Overridden in tests.
+var witnessTimeout = 60 * time.Second
+
 // decodeExactly decodes a single JSON value from r and requires the body to end
 // there. json.Decoder.Decode stops at the first value, so trailing bytes would
 // otherwise be ignored and a malformed response accepted as evidence.
+//
+// The read is bounded: an oversized body is reported rather than accumulated,
+// and the caller's context deadline covers a body that simply never ends.
 func decodeExactly(r io.Reader, v any) error {
-	dec := json.NewDecoder(r)
+	limited := &io.LimitedReader{R: r, N: maxEvidenceBytes + 1}
+	dec := json.NewDecoder(limited)
 	if err := dec.Decode(v); err != nil {
+		if limited.N <= 0 {
+			return fmt.Errorf("response exceeds the %d byte evidence limit", maxEvidenceBytes)
+		}
 		return err
 	}
 	var extra json.RawMessage
-	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+	err := dec.Decode(&extra)
+	if limited.N <= 0 {
+		return fmt.Errorf("response exceeds the %d byte evidence limit", maxEvidenceBytes)
+	}
+	if !errors.Is(err, io.EOF) {
 		return fmt.Errorf("trailing data after the first JSON value")
 	}
 	return nil
@@ -184,6 +207,10 @@ func (c *HarborChecker) SpecReferrerWitness(
 	if err != nil {
 		return false, fmt.Errorf("spec referrer witness: %w", err)
 	}
+	// Bound the whole walk, so one unresponsive registry cannot stall reconcile.
+	ctx, cancel := context.WithTimeout(ctx, witnessTimeout)
+	defer cancel()
+
 	if expectedReferrerDigest != "" && !usableDigest(expectedReferrerDigest) {
 		// The entry records a digest that cannot identify a manifest, so no artifact
 		// can validly match it. That is indeterminate, not a confirmed absence.
