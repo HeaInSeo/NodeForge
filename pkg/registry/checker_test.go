@@ -1273,3 +1273,99 @@ func TestSpecReferrerWitness_KnownDigest_UnreadableNeighborIsIrrelevant(t *testi
 		t.Error("expected ok=false")
 	}
 }
+
+// ── Malformed Link fields at EOF ──────────────────────────────────────────────
+//
+// A Link field that ends mid-quote, mid-target, or mid-escape absorbed the rest
+// of its input rather than parsing it, so it may have swallowed the delimiter
+// that separated a real continuation. Reading such a field as "no next page"
+// would let an unvisited page become a confirmed absence.
+
+func TestNextPageURL_StructurallyIncompleteFields(t *testing.T) {
+	const current = "http://reg.example/v2/library/tool/referrers/sha256:subject"
+	for _, tc := range []struct {
+		name    string
+		links   []string
+		wantErr bool
+		want    string
+	}{
+		{
+			// Central's case: the unterminated quote swallows ", </actual>; rel=next".
+			name:    "unterminated quoted parameter",
+			links:   []string{`</previous>; rel=prev; title="unterminated, </actual>; rel=next`},
+			wantErr: true,
+		},
+		{
+			name:    "unfinished angle target",
+			links:   []string{`</previous>; rel=prev, </actual?a=1; rel=next`},
+			wantErr: true,
+		},
+		{
+			name:    "dangling escape",
+			links:   []string{`</previous>; rel=prev; title="x\`},
+			wantErr: true,
+		},
+		{
+			name:    "incomplete field in a later Link header",
+			links:   []string{`</first>; rel=first`, `</previous>; rel=prev; title="unterminated, </actual>; rel=next`},
+			wantErr: true,
+		},
+		{
+			// Positive evidence still wins: the continuation was found before the
+			// malformed field could matter.
+			name:  "next found despite a later malformed field",
+			links: []string{`</actual>; rel=next`, `</other>; rel=prev; title="unterminated`},
+			want:  "http://reg.example/actual",
+		},
+		{
+			// A genuine last page must stay a genuine last page.
+			name:  "well formed with no next",
+			links: []string{`</previous>; rel="prev"`, `</first>; rel="first"`},
+			want:  "",
+		},
+		{
+			name:  "well formed quoted comma and semicolon",
+			links: []string{`</previous>; rel=prev; title="a, b; c", </actual>; rel=next`},
+			want:  "http://reg.example/actual",
+		},
+		{
+			name:  "well formed escaped quote",
+			links: []string{`</previous>; rel=prev; title="x\"", </actual>; rel=next`},
+			want:  "http://reg.example/actual",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := nextPageURL(current, tc.links)
+			switch {
+			case tc.wantErr && err == nil:
+				t.Fatalf("expected an indeterminate error, got %q", got)
+			case !tc.wantErr && err != nil:
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !tc.wantErr && got != tc.want {
+				t.Errorf("nextPageURL = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestReferrerExists_MalformedLinkHidingContinuation_IsIndeterminate(t *testing.T) {
+	// End to end: the page holds no witness and its Link field cannot be parsed to
+	// the end, so this must be indeterminate rather than a confirmed absence.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Link", `</previous>; rel=prev; title="unterminated, </actual>; rel=next`)
+		_, _ = w.Write([]byte(`{"manifests":[{"digest":"sha256:` + strings.Repeat("b", 64) +
+			`","artifactType":"application/vnd.nodevault.toolprofile.v1+json"}]}`))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witnessOf(t, strings.TrimPrefix(ts.URL, "http://"), testSpecDigest)
+	if err == nil {
+		t.Fatal("a Link field that may hide the continuation must be indeterminate, not absent")
+	}
+	if ok {
+		t.Error("expected ok=false alongside the error")
+	}
+}

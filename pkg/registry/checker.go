@@ -439,8 +439,16 @@ func (c *HarborChecker) referrerPage(
 // indeterminate, not the end of the listing: reporting it as the last page would
 // let an unread continuation become a false confirmed absence.
 func nextPageURL(currentURL string, links []string) (string, error) {
+	// A field that could not be parsed to the end may have hidden the
+	// continuation. Positive evidence still wins — if a usable next link is found,
+	// it is returned — but otherwise this is indeterminate, never "no next page".
+	var malformed string
 	for _, link := range links {
-		for _, entry := range splitLinkEntries(link) {
+		entries, complete := splitLinkEntries(link)
+		if !complete {
+			malformed = link
+		}
+		for _, entry := range entries {
 			lo := strings.Index(entry, "<")
 			hi := strings.Index(entry, ">")
 			if lo < 0 || hi < lo {
@@ -472,12 +480,21 @@ func nextPageURL(currentURL string, links []string) (string, error) {
 			return resolved.String(), nil
 		}
 	}
+	if malformed != "" {
+		return "", fmt.Errorf(
+			"link field is structurally incomplete and may hide a continuation: %q", malformed)
+	}
 	return "", nil
 }
 
 // splitLinkEntries splits a Link header field into its comma-separated entries
 // without breaking on a comma inside a <...> target or a quoted parameter value.
-func splitLinkEntries(link string) []string {
+//
+// The second return reports whether the field ended in a structurally complete
+// state. A field that runs out mid-quote, mid-target, or mid-escape may have
+// swallowed a delimiter — and with it a continuation — so the caller must not
+// read it as "no next page".
+func splitLinkEntries(link string) (entries []string, complete bool) {
 	return splitUnquoted(link, ',', true)
 }
 
@@ -485,9 +502,13 @@ func splitLinkEntries(link string) []string {
 // quoted string or, when angleAware, inside a <...> target. A backslash-escaped
 // character inside a quoted string is passed through without changing quote
 // state, so an escaped quote cannot desynchronize the scan.
-func splitUnquoted(s string, sep rune, angleAware bool) []string {
+//
+// complete is false when the input ends while still inside a quoted string, an
+// unterminated <...> target, or a dangling escape. Everything after such a point
+// was absorbed rather than parsed, so the split cannot be trusted to have seen
+// every separator.
+func splitUnquoted(s string, sep rune, angleAware bool) (parts []string, complete bool) {
 	var (
-		parts   []string
 		buf     strings.Builder
 		inAngle bool
 		inQuote bool
@@ -519,7 +540,7 @@ func splitUnquoted(s string, sep rune, angleAware bool) []string {
 	if strings.TrimSpace(buf.String()) != "" {
 		parts = append(parts, buf.String())
 	}
-	return parts
+	return parts, !inQuote && !inAngle && !escaped
 }
 
 // hasNextRelation reports whether a Link entry's parameter section declares the
@@ -528,7 +549,10 @@ func splitUnquoted(s string, sep rune, angleAware bool) []string {
 // Parameters are separated on unquoted semicolons only, so a quoted value that
 // itself contains a semicolon is not mistaken for further parameters.
 func hasNextRelation(params string) bool {
-	for _, param := range splitUnquoted(params, ';', false) {
+	// Completeness is judged for the whole Link field by the caller, so the
+	// parameter-level split only needs the pieces it could parse.
+	params2, _ := splitUnquoted(params, ';', false)
+	for _, param := range params2 {
 		key, value, ok := strings.Cut(param, "=")
 		if !ok || !strings.EqualFold(strings.TrimSpace(key), "rel") {
 			continue
