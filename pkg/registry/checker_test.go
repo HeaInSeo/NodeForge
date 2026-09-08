@@ -1595,3 +1595,64 @@ func TestNextPageURL_LeadingWhitespaceEntry_IsStillValid(t *testing.T) {
 		t.Errorf("nextPageURL = %q, want %q", got, "http://reg.example/actual")
 	}
 }
+
+func TestSpecReferrerWitness_ListingAndManifestDisagreeOnKind_IsNotEvidence(t *testing.T) {
+	// The listing labels the descriptor a ToolSpec but the manifest authoritatively
+	// declares something else, while the payload happens to name this entry. The
+	// two sources contradict each other, so it witnesses nothing.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.nodevault.toolspec.v1+json"}]}`,
+			testSpecDigest)
+	})
+	cfgDigest := "sha256:" + strings.Repeat("6", 64)
+	mux.HandleFunc("/v2/library/tool/manifests/"+testSpecDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"artifactType":"application/vnd.cncf.notary.signature","config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":%q}}`,
+			cfgDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/blobs/"+cfgDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"cas_hash":%q}`, testCasHash)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witness(t, strings.TrimPrefix(ts.URL, "http://"), "", testCasHash)
+	if ok {
+		t.Error("a descriptor/manifest kind contradiction must not witness the entry")
+	}
+	if err == nil {
+		t.Error("contradictory evidence must be indeterminate, not a clean nonmatch")
+	}
+}
+
+func TestSpecReferrerWitness_PayloadGone_IsCleanNonmatch(t *testing.T) {
+	// The ToolSpec manifest is present but its content-addressed payload is gone,
+	// so the artifact can no longer name any entry. That is confirmed
+	// incompleteness — reporting it as indeterminate would freeze a stale Healthy.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:subject", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`,
+			testSpecDigest)
+	})
+	cfgDigest := "sha256:" + strings.Repeat("7", 64)
+	mux.HandleFunc("/v2/library/tool/manifests/"+testSpecDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":%q}}`, cfgDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/blobs/"+cfgDigest, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ok, err := witness(t, strings.TrimPrefix(ts.URL, "http://"), "", testCasHash)
+	if err != nil {
+		t.Fatalf("a deleted payload is a confirmed nonmatch, not an error: %v", err)
+	}
+	if ok {
+		t.Error("expected ok=false")
+	}
+}

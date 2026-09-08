@@ -653,3 +653,61 @@ func TestFastRun_VanishedTypedToolSpec_ReconcilesToPartial(t *testing.T) {
 		t.Errorf("integrity_health = %q, want %q", e.IntegrityHealth, index.HealthPartial)
 	}
 }
+
+// TestFastRun_ToolSpecPayloadDeleted_ReconcilesToPartial pins the health-level
+// consequence of a deleted payload: the entry must actually move to Partial
+// rather than being frozen at a stale status by a spurious indeterminate.
+func TestFastRun_ToolSpecPayloadDeleted_ReconcilesToPartial(t *testing.T) {
+	specDigest := "sha256:" + strings.Repeat("a", 64)
+	cfgDigest := "sha256:" + strings.Repeat("8", 64)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v2/library/tool/manifests/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/v2/library/tool/referrers/sha256:img", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"manifests":[{"digest":%q,"artifactType":"application/vnd.oci.image.manifest.v1+json"}]}`, specDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/manifests/"+specDigest, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w,
+			`{"config":{"mediaType":"application/vnd.nodevault.toolspec.v1+json","digest":%q}}`, cfgDigest)
+	})
+	mux.HandleFunc("/v2/library/tool/blobs/"+cfgDigest, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	host := strings.TrimPrefix(ts.URL, "http://")
+
+	store := newTestStore(t)
+	if err := store.Append(index.Entry{
+		CasHash:         "payload-gone",
+		ArtifactKind:    index.KindTool,
+		StableRef:       "tool@1",
+		ImageRef:        host + "/library/tool:latest",
+		ImageDigest:     "sha256:img",
+		LifecyclePhase:  index.PhaseActive,
+		IntegrityHealth: startingHealth,
+	}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	checker, err := registry.NewHarborChecker(registryconfig.Config{Scheme: "http"})
+	if err != nil {
+		t.Fatalf("NewHarborChecker: %v", err)
+	}
+	if runErr := reconcile.New(store, checker).FastRun(context.Background()); runErr != nil {
+		t.Fatalf("FastRun: %v", runErr)
+	}
+
+	e, err := store.GetByCasHash("payload-gone")
+	if err != nil {
+		t.Fatalf("GetByCasHash: %v", err)
+	}
+	if e.IntegrityHealth == startingHealth {
+		t.Fatalf("integrity_health is still %q: a deleted payload was mistaken for indeterminate", e.IntegrityHealth)
+	}
+	if e.IntegrityHealth != index.HealthPartial {
+		t.Errorf("integrity_health = %q, want %q", e.IntegrityHealth, index.HealthPartial)
+	}
+}

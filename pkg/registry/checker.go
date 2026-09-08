@@ -402,7 +402,15 @@ func (c *HarborChecker) resolveCandidates(
 			// so this must not be dragged into the payload lookup below.
 			continue
 		}
-		if !cand.kindKnown && facts.kind != mediaTypeToolSpec {
+		if facts.kind != mediaTypeToolSpec {
+			if cand.kindKnown {
+				// The listing labeled this a ToolSpec and the manifest itself says
+				// otherwise. The two disagree about what the artifact is, so it
+				// witnesses nothing and the contradiction is not a clean nonmatch.
+				defer1("spec referrer witness %s: indeterminate: descriptor claims %s but manifest declares %q",
+					pageURL, mediaTypeToolSpec, facts.kind)
+				continue
+			}
 			continue // resolved to something else: settled, not a witness
 		}
 		if want.referrerDigest != "" {
@@ -410,9 +418,15 @@ func (c *HarborChecker) resolveCandidates(
 			return true, nil
 		}
 
-		casHash, casErr := c.referrerCasHash(ctx, host, name, facts.configDigest)
+		casHash, payloadFound, casErr := c.referrerCasHash(ctx, host, name, facts.configDigest)
 		if casErr != nil {
 			defer1("spec referrer witness %s: %w", pageURL, casErr)
+			continue
+		}
+		if !payloadFound {
+			// The content-addressed payload is gone, so this artifact can no longer
+			// name any entry. That is confirmed incompleteness, not an unknown —
+			// treating it as indeterminate would strand a stale Healthy forever.
 			continue
 		}
 		if casHash == want.casHash {
@@ -726,40 +740,47 @@ func (c *HarborChecker) inspectReferrer(
 // which sori stores as the referrer manifest's config blob. It is what ties an
 // artifact to the index entry it was pushed for.
 //
-// A payload that records no cas_hash identifies no entry, so it is indeterminate
-// rather than a nonmatch.
-func (c *HarborChecker) referrerCasHash(ctx context.Context, host, name, configDigest string) (string, error) {
+// found is false when the blob is confirmed absent: the artifact is incomplete
+// and can no longer name any entry, which is a nonmatch rather than an unknown.
+// A payload that records no cas_hash identifies no entry, so that stays
+// indeterminate.
+func (c *HarborChecker) referrerCasHash(
+	ctx context.Context, host, name, configDigest string,
+) (casHash string, found bool, err error) {
 	if !usableDigest(configDigest) {
-		return "", fmt.Errorf(
+		return "", false, fmt.Errorf(
 			"referrer payload: indeterminate: manifest config carries no usable digest (%q)", configDigest)
 	}
 	url := fmt.Sprintf("%s://%s/v2/%s/blobs/%s", c.scheme, host, name, configDigest)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
-		return "", fmt.Errorf("referrer payload: build request: %w", err)
+		return "", false, fmt.Errorf("referrer payload: build request: %w", err)
 	}
 
 	resp, err := c.doWithAuthRetry(ctx, req)
 	if err != nil {
-		return "", fmt.Errorf("referrer payload GET %s: %w", url, err)
+		return "", false, fmt.Errorf("referrer payload GET %s: %w", url, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if resp.StatusCode == http.StatusNotFound {
+		return "", false, nil
+	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("referrer payload GET %s: indeterminate status %d", url, resp.StatusCode)
+		return "", false, fmt.Errorf("referrer payload GET %s: indeterminate status %d", url, resp.StatusCode)
 	}
 
 	var payload struct {
 		CasHash string `json:"cas_hash"`
 	}
 	if decErr := decodeExactly(resp.Body, &payload); decErr != nil {
-		return "", fmt.Errorf("referrer payload GET %s: decode: %w", url, decErr)
+		return "", false, fmt.Errorf("referrer payload GET %s: decode: %w", url, decErr)
 	}
 	if payload.CasHash == "" {
-		return "", fmt.Errorf(
+		return "", false, fmt.Errorf(
 			"referrer payload GET %s: indeterminate: ToolSpec payload records no cas_hash", url)
 	}
-	return payload.CasHash, nil
+	return payload.CasHash, true, nil
 }
 
 // PullReachable verifies the image manifest can be fetched (GET, not just HEAD).
