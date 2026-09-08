@@ -512,24 +512,28 @@ func nextPageURL(currentURL string, links []string) (string, error) {
 			malformed = link
 		}
 		for _, entry := range entries {
-			lo := strings.Index(entry, "<")
-			hi := strings.Index(entry, ">")
-			if lo < 0 || hi < lo {
+			// RFC 8288: a link-value begins with its <URI-Reference>. Anything before
+			// it means the entry is malformed, and accepting the first bracket pair
+			// found anywhere would follow a junk target instead of the real one.
+			trimmed := strings.TrimSpace(entry)
+			lo := strings.Index(trimmed, "<")
+			hi := strings.Index(trimmed, ">")
+			if lo != 0 || hi < lo {
 				// Structurally malformed. If it nonetheless declares itself the
 				// continuation, silently skipping it would strand an unvisited page.
-				if hasNextRelation(entry) {
+				if hasNextRelation(trimmed) {
 					return "", fmt.Errorf("advertised next page link is malformed: %q", entry)
 				}
 				continue
 			}
-			if !hasNextRelation(entry[hi+1:]) {
+			if !hasNextRelation(trimmed[hi+1:]) {
 				continue
 			}
 			base, err := neturl.Parse(currentURL)
 			if err != nil {
 				return "", fmt.Errorf("resolve next page against %q: %w", currentURL, err)
 			}
-			ref, err := neturl.Parse(strings.TrimSpace(entry[lo+1 : hi]))
+			ref, err := neturl.Parse(strings.TrimSpace(trimmed[lo+1 : hi]))
 			if err != nil {
 				return "", fmt.Errorf("parse advertised next page link: %w", err)
 			}

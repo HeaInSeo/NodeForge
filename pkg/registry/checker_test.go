@@ -1566,3 +1566,32 @@ func TestSpecReferrerWitness_ResponseThatNeverEnds_DoesNotHang(t *testing.T) {
 		t.Fatal("SpecReferrerWitness hung on a response that never ends")
 	}
 }
+
+func TestNextPageURL_PrefixedJunkEntry_IsIndeterminate(t *testing.T) {
+	// The junk-prefixed entry declares itself the continuation, so it cannot be
+	// skipped, and its bracket pair must not be followed in place of the real
+	// continuation that comes after it.
+	got, err := nextPageURL(
+		"http://reg.example/v2/library/tool/referrers/sha256:subject",
+		[]string{`junk</wrong>; rel=next, </actual>; rel=next`})
+	if err == nil {
+		t.Fatalf("a malformed entry declaring rel=next must be indeterminate, got %q", got)
+	}
+	if strings.Contains(got, "wrong") {
+		t.Errorf("must never follow the junk-prefixed target, got %q", got)
+	}
+}
+
+func TestNextPageURL_LeadingWhitespaceEntry_IsStillValid(t *testing.T) {
+	// Whitespace before the target is normal after splitting on commas and must
+	// not be mistaken for junk.
+	got, err := nextPageURL(
+		"http://reg.example/v2/library/tool/referrers/sha256:subject",
+		[]string{`</previous>; rel=prev,   </actual>; rel=next`})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "http://reg.example/actual" {
+		t.Errorf("nextPageURL = %q, want %q", got, "http://reg.example/actual")
+	}
+}
