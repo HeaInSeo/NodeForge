@@ -642,6 +642,16 @@ func TestNextPageURL_RelationSpellings(t *testing.T) {
 		{"next in a later Link field", []string{`</v2/prev>; rel="prev"`, `</v2/next>; rel="next"`}, "http://reg.example/v2/next"},
 		{"no next across fields", []string{`</v2/prev>; rel="prev"`, `</v2/first>; rel="first"`}, ""},
 		{
+			"repeated rel: only the first counts",
+			[]string{`</wrong>; rel=prev; rel=next, </actual>; rel=next`},
+			"http://reg.example/actual",
+		},
+		{
+			"repeated rel where the first is next",
+			[]string{`</actual>; rel=next; rel=prev`},
+			"http://reg.example/actual",
+		},
+		{
 			"target with no parameters at all",
 			[]string{`</v2/next>`},
 			"",

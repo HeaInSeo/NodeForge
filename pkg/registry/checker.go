@@ -675,7 +675,8 @@ func unquoteParamValue(v string) string {
 
 // hasNextRelation reports whether a Link entry's parameter section declares the
 // "next" relation. Per RFC 8288 the value may be quoted or bare, relation names
-// are case-insensitive, and a single rel may list several space-separated types.
+// are case-insensitive, a single rel may list several space-separated types, and
+// only the first rel parameter counts — a repeated rel is ignored.
 // Parameters are separated on unquoted semicolons only, so a quoted value that
 // itself contains a semicolon is not mistaken for further parameters.
 func hasNextRelation(params string) bool {
@@ -687,11 +688,14 @@ func hasNextRelation(params string) bool {
 		if !ok || !strings.EqualFold(strings.TrimSpace(key), "rel") {
 			continue
 		}
+		// RFC 8288: a link-value's relation is its first rel parameter; later
+		// occurrences are ignored, so this decides the entry either way.
 		for _, rel := range strings.Fields(unquoteParamValue(value)) {
 			if strings.EqualFold(rel, "next") {
 				return true
 			}
 		}
+		return false
 	}
 	return false
 }
