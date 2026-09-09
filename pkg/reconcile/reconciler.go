@@ -39,8 +39,22 @@ type RegistryChecker interface {
 	// ImageExists checks whether a manifest with the given digest exists in the registry.
 	ImageExists(ctx context.Context, imageRef, digest string) (bool, error)
 
-	// ReferrerExists checks whether a spec referrer artifact attached to the subject image exists.
-	ReferrerExists(ctx context.Context, imageRef, subjectDigest string) (bool, error)
+	// SpecReferrerWitness checks whether the subject image carries a ToolSpec
+	// referrer belonging to THIS entry.
+	//
+	// Implementations must decide this by the referrer's exact semantic kind:
+	// other kinds attached to the same subject digest — a ToolProfile referrer in
+	// particular — must not report the spec referrer present, because
+	// HealthPartial is defined as "image OK, spec referrer missing".
+	//
+	// It must also be entry-specific. Index uniqueness is by CasHash, so one image
+	// digest may carry several entries; entry A's ToolSpec referrer is not evidence
+	// for entry B. expectedReferrerDigest is Entry.SpecReferrerDigest and, when set,
+	// is the only acceptable witness. When it is empty the witness is a ToolSpec
+	// referrer whose payload names casHash.
+	SpecReferrerWitness(
+		ctx context.Context, imageRef, subjectDigest, expectedReferrerDigest, casHash string,
+	) (bool, error)
 
 	// PullReachable checks whether the image can actually be pulled (slow check).
 	PullReachable(ctx context.Context, imageRef, digest string) (bool, error)
@@ -98,9 +112,9 @@ func (r *Reconciler) reconcileExistence(ctx context.Context, e index.Entry) erro
 		return fmt.Errorf("image exists check: %w", err)
 	}
 
-	referrerOK, err := r.checker.ReferrerExists(ctx, e.ImageRef, e.ImageDigest)
+	referrerOK, err := r.checker.SpecReferrerWitness(ctx, e.ImageRef, e.ImageDigest, e.SpecReferrerDigest, e.CasHash)
 	if err != nil {
-		return fmt.Errorf("referrer exists check: %w", err)
+		return fmt.Errorf("spec referrer witness check: %w", err)
 	}
 
 	health := judgeHealth(imageOK, referrerOK)
@@ -230,7 +244,8 @@ func (r *Reconciler) runSlowTick(ctx context.Context) {
 
 // ── Health judgment ───────────────────────────────────────────────────────────
 
-// judgeHealth maps (imageOK, referrerOK) → IntegrityHealth.
+// judgeHealth maps (imageOK, referrerOK) → IntegrityHealth, where referrerOK
+// means this entry's own ToolSpec referrer was witnessed.
 //
 //	image ✓ / referrer ✓  → Healthy
 //	image ✓ / referrer ✗  → Partial

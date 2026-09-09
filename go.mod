@@ -21,6 +21,7 @@ require (
 	github.com/HeaInSeo/sori v0.8.0-rc5
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.45
+	github.com/opencontainers/go-digest v1.0.0
 	github.com/openshift/imagebuilder v1.2.21
 	go.podman.io/storage v1.63.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -127,7 +128,6 @@ require (
 	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/onsi/ginkgo/v2 v2.29.0 // indirect
 	github.com/opencontainers/cgroups v0.0.6 // indirect
-	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opencontainers/runc v1.4.3 // indirect
 	github.com/opencontainers/runtime-spec v1.3.0 // indirect
