@@ -28,11 +28,6 @@ func newSubmitTestService(t *testing.T) *Service {
 	if err != nil {
 		t.Fatalf("buildstate.Open: %v", err)
 	}
-	t.Cleanup(func() {
-		if err := state.Close(); err != nil {
-			t.Fatalf("buildstate.Close: %v", err)
-		}
-	})
 	if err := idx.AppendResolvedToolSpec(index.ResolvedToolSpec{
 		ToolSpecDigest: "spec-123",
 		ToolName:       "bwa-mem2",
@@ -42,10 +37,59 @@ func newSubmitTestService(t *testing.T) *Service {
 	}); err != nil {
 		t.Fatalf("AppendResolvedToolSpec: %v", err)
 	}
-	return &Service{
+	svc := &Service{
 		builder:    &mockBuilder{digest: "sha256:built"},
 		indexStore: idx,
 		buildState: state,
+	}
+	t.Cleanup(func() {
+		waitForSubmittedBuildsToStop(t, svc)
+		if err := state.Close(); err != nil {
+			t.Errorf("buildstate.Close: %v", err)
+		}
+	})
+	return svc
+}
+
+// waitForSubmittedBuildsToStop keeps t.TempDir-backed stores alive until every
+// detached build goroutine has stopped. Normal builds remove their active entry
+// on a durable terminal transition; abandoned builds intentionally retain the
+// entry so late WatchToolBuild callers can observe the failure, but close done.
+// Either condition is therefore sufficient to prove that test teardown can
+// close SQLite and remove temp directories without racing background writes.
+func waitForSubmittedBuildsToStop(t *testing.T, svc *Service) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		svc.activeMu.Lock()
+		entries := make([]*activeBuild, 0, len(svc.active))
+		for _, entry := range svc.active {
+			entries = append(entries, entry)
+		}
+		svc.activeMu.Unlock()
+		if len(entries) == 0 {
+			return
+		}
+
+		allStopped := true
+		for _, entry := range entries {
+			entry.cancel()
+			select {
+			case <-entry.done:
+				// An abandoned entry is intentionally retained after its worker
+				// stopped, so a closed done channel is sufficient here.
+			default:
+				allStopped = false
+			}
+		}
+		if allStopped {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Errorf("timed out waiting for submitted build goroutines to stop")
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -112,6 +156,10 @@ func TestBuildRequestFromResolved_TrailingContent_Rejected(t *testing.T) {
 
 func TestSubmitToolBuild_CreatesRequestedBuildState(t *testing.T) {
 	svc := newSubmitTestService(t)
+	// Hold the asynchronous pipeline inside Build so this test observes only
+	// submitted lifecycle states (Requested/Resolving/Building), never a later
+	// Pushing state reached purely because the goroutine won the scheduling race.
+	svc.builder = &cancelableBuilder{started: make(chan struct{})}
 
 	resp, err := svc.SubmitToolBuild(context.Background(), &nfv1.SubmitToolBuildRequest{
 		RequestId:      "build-123",
@@ -131,8 +179,8 @@ func TestSubmitToolBuild_CreatesRequestedBuildState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildState.Get: %v", err)
 	}
-	if got.Status != buildstate.StatusRequested && got.Status != buildstate.StatusResolving && got.Status != buildstate.StatusBuilding && !buildstate.Terminal(got.Status) {
-		t.Fatalf("stored status got %q, want a valid submitted lifecycle state", got.Status)
+	if got.Status != buildstate.StatusRequested && got.Status != buildstate.StatusResolving && got.Status != buildstate.StatusBuilding {
+		t.Fatalf("stored status got %q, want Requested, Resolving, or Building", got.Status)
 	}
 }
 
